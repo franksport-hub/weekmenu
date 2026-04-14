@@ -68,7 +68,7 @@
     const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     let appData = { deelnemers: [], maaltijden: [], beoordelingen: [], planning: [] };
-    let huidigeGebruikerId = null;
+    let huidigeGebruikerId = null; // Dit blijft bewaard in het geheugen
 
     function toggleMenu() {
         document.getElementById('sideMenu').classList.toggle('open');
@@ -90,17 +90,17 @@
             tekenGerechten();
         } catch (e) {
             console.error(e);
-            alert("Er ging iets mis bij het ophalen van de data.");
         }
     }
 
     function vulUserSelect() {
         const s = document.getElementById('user-select');
         s.innerHTML = '<option value="">-- Kies je naam --</option>' + 
-            appData.deelnemers.map(u => `<option value="${u.id}">${u.naam}</option>`).join('');
+            appData.deelnemers.map(u => `<option value="${u.id}" ${u.id === huidigeGebruikerId ? 'selected' : ''}>${u.naam}</option>`).join('');
     }
 
     function veranderGebruiker() {
+        // Update de globale variabele zodra je iemand kiest
         huidigeGebruikerId = parseInt(document.getElementById('user-select').value) || null;
         tekenGerechten();
     }
@@ -125,9 +125,13 @@
     }
 
     async function plan(datum, mid) {
-        if(!mid) await db.from('weekplanning').delete().eq('datum', datum);
-        else await db.from('weekplanning').upsert({ datum, maaltijd_id: parseInt(mid) }, { onConflict: 'datum' });
-        laadData();
+        if(!mid) {
+            await db.from('weekplanning').delete().eq('datum', datum);
+        } else {
+            // Voeg 'dag' toe als fallback omdat de database kolom 'NOT NULL' kan zijn
+            await db.from('weekplanning').upsert({ datum, maaltijd_id: parseInt(mid), dag: 'n.v.t.' }, { onConflict: 'datum' });
+        }
+        await laadData(); // Wacht tot data ververst is
     }
 
     function tekenGerechten() {
@@ -136,34 +140,42 @@
         appData.maaltijden.forEach(m => {
             const rb = appData.beoordelingen.filter(x => x.maaltijd_id === m.id);
             const gem = rb.length ? (rb.reduce((a,b)=>a+b.sterren, 0)/rb.length).toFixed(1) : 0;
-            const mijn = appData.beoordelingen.find(x => x.maaltijd_id === m.id && x.deelnemer_id === huidigeGebruikerId)?.sterren || 0;
+            
+            // Zoek specifiek de score van de huidige gebruiker
+            const mijnBeoordeling = appData.beoordelingen.find(x => x.maaltijd_id === m.id && x.deelnemer_id === huidigeGebruikerId);
+            const mijnScore = mijnBeoordeling ? mijnBeoordeling.sterren : 0;
 
             list.innerHTML += `<div style="padding:15px 0; border-bottom:1px solid #eee">
                 <div style="display:flex; justify-content:space-between">
                     <strong>${m.naam}</strong>
                     <span><div class="stars-outer"><div class="stars-inner" style="width:${gem*20}%"></div></div> ${gem}</span>
                 </div>
-                <div class="rating-box ${huidigeGebruikerId?'active':''}">
-                    <span>Jouw score:</span>
-                    <div>${[1,2,3,4,5].map(n => `<button class="rate-btn ${mijn==n?'selected':''}" onclick="rate(${m.id},${n})">★</button>`).join('')}</div>
+                <div class="rating-box ${huidigeGebruikerId ? 'active' : ''}">
+                    <span style="font-size:0.8em;">Jouw score:</span>
+                    <div>${[1,2,3,4,5].map(n => `<button class="rate-btn ${mijnScore === n ? 'selected' : ''}" onclick="rate(${m.id},${n})">★</button>`).join('')}</div>
                 </div>
             </div>`;
         });
     }
 
     async function rate(mid, s) {
-        await db.from('beoordelingen').upsert({ maaltijd_id: mid, deelnemer_id: huidigeGebruikerId, sterren: s }, { onConflict: 'maaltijd_id,deelnemer_id' });
-        laadData();
+        if(!huidigeGebruikerId) return;
+        await db.from('beoordelingen').upsert({ 
+            maaltijd_id: mid, 
+            deelnemer_id: huidigeGebruikerId, 
+            sterren: s 
+        }, { onConflict: 'maaltijd_id,deelnemer_id' });
+        await laadData();
     }
 
     async function voegPersoonToe() {
         const n = document.getElementById('new-person-name').value;
-        if(n) { await db.from('deelnemers').insert([{naam:n}]); laadData(); toggleMenu(); }
+        if(n) { await db.from('deelnemers').insert([{naam:n}]); await laadData(); toggleMenu(); }
     }
 
     async function voegMaaltijdToe() {
         const n = document.getElementById('new-meal-name').value;
-        if(n) { await db.from('maaltijden').insert([{naam:n}]); laadData(); toggleMenu(); }
+        if(n) { await db.from('maaltijden').insert([{naam:n}]); await laadData(); toggleMenu(); }
     }
 
     laadData();
