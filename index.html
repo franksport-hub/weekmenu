@@ -3,69 +3,185 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Weekmenu App</title>
+    <title>Islam at sea - Menu</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f4f4f9; padding: 20px; margin: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #f4f4f9; padding: 15px; margin: 0; }
         .app-container { max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        h1 { color: #333; text-align: center; }
-        .meal-item { padding: 15px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+        h1 { color: #333; text-align: center; margin-top: 0; }
+        
+        .user-selector { background: #eef2f5; padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: center; }
+        select, input[type="text"] { padding: 10px; font-size: 1em; border-radius: 6px; border: 1px solid #ccc; width: 100%; max-width: 300px; margin-bottom: 10px; }
+
+        /* Nieuwe toevoeg-sectie */
+        .add-meal-section { text-align: center; margin-bottom: 20px; }
+        .btn { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 6px; font-size: 1em; cursor: pointer; }
+        .btn:hover { background: #0056b3; }
+        .add-meal-form { display: none; background: #eef2f5; padding: 15px; border-radius: 8px; margin-top: 10px; }
+        .add-meal-form.active { display: block; }
+
+        .meal-item { padding: 15px 0; border-bottom: 1px solid #eee; display: flex; flex-direction: column; gap: 10px; }
         .meal-item:last-child { border-bottom: none; }
+        .meal-header { display: flex; justify-content: space-between; align-items: center; }
         .meal-name { font-weight: bold; font-size: 1.1em; }
-        .meal-date { font-size: 0.8em; color: #666; }
+        
+        .stars-outer { display: inline-block; position: relative; color: #e0e0e0; font-size: 1.2em; letter-spacing: 2px; }
+        .stars-outer::before { content: "★★★★★"; }
+        .stars-inner { position: absolute; top: 0; left: 0; white-space: nowrap; overflow: hidden; color: #ffc107; }
+        .stars-inner::before { content: "★★★★★"; }
+        .rating-text { font-size: 0.9em; color: #666; margin-left: 5px; }
+
+        .my-rating-box { background: #f9f9f9; padding: 10px; border-radius: 6px; font-size: 0.9em; display: none; align-items: center; justify-content: space-between;}
+        .my-rating-box.active { display: flex; }
+        .rate-btn { background: none; border: 1px solid #ccc; font-size: 1.2em; cursor: pointer; border-radius: 50%; width: 35px; height: 35px; color: #ccc; }
+        .rate-btn.selected { color: #ffc107; border-color: #ffc107; background: #fffde7; }
     </style>
 </head>
 <body>
 
 <div class="app-container">
-    <h1>🍽️ Onze Maaltijden</h1>
+    <h1>🍽️ Weekmenu</h1>
+    
+    <div class="user-selector">
+        <strong>Wie ben jij?</strong><br><br>
+        <select id="user-select" onchange="veranderGebruiker()">
+            <option value="">-- Kies je naam --</option>
+        </select>
+    </div>
+
+    <div class="add-meal-section">
+        <button class="btn" onclick="toggleToevoegen()">+ Nieuw Gerecht</button>
+        <div id="add-meal-form" class="add-meal-form">
+            <input type="text" id="new-meal-name" placeholder="Naam van het gerecht (bijv. Taco's)">
+            <button class="btn" style="background: #28a745;" onclick="voegMaaltijdToe()">Opslaan</button>
+        </div>
+    </div>
+
     <div id="meal-list">Laden van maaltijden...</div>
 </div>
 
 <script>
-    // --- JOUW SUPABASE GEGEVENS HIER ---
     const SUPABASE_URL = 'https://ythfhzepuwggfcpoyvem.supabase.co';
     const SUPABASE_KEY = 'sb_publishable_bmRk9F8MjM3-gGe_6fVDMA_0fVUfkkg'; 
-    // OPLOSSING: We noemen dit nu 'db' in plaats van 'supabase'
+
     const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // Functie om de data op te halen en op het scherm te zetten
-    async function haalMaaltijdenOp() {
+    let appData = { deelnemers: [], maaltijden: [], beoordelingen: [] };
+    let huidigeGebruikerId = null;
+
+    async function laadAlleData() {
+        document.getElementById('meal-list').innerHTML = "Data ophalen uit de database...";
         
-        // OPLOSSING: We gebruiken hier ook 'db'
-        const { data, error } = await db
-            .from('maaltijden')
-            .select('*');
+        const [deelnemersRes, maaltijdenRes, beoordelingenRes] = await Promise.all([
+            db.from('deelnemers').select('*'),
+            db.from('maaltijden').select('*'),
+            db.from('beoordelingen').select('*')
+        ]);
 
-        if (error) {
-            console.error("Fout bij ophalen:", error);
-            document.getElementById('meal-list').innerHTML = "Er ging iets mis bij het ophalen van de data.";
-            return;
+        appData.deelnemers = deelnemersRes.data || [];
+        appData.maaltijden = maaltijdenRes.data || [];
+        appData.beoordelingen = beoordelingenRes.data || [];
+
+        vulGebruikerDropdown();
+        tekenMaaltijden();
+    }
+
+    function vulGebruikerDropdown() {
+        const select = document.getElementById('user-select');
+        select.innerHTML = '<option value="">-- Kies je naam --</option>';
+        appData.deelnemers.forEach(d => {
+            select.innerHTML += `<option value="${d.id}">${d.naam}</option>`;
+        });
+        
+        // Behoud de selectie als die er was
+        if (huidigeGebruikerId) {
+            select.value = huidigeGebruikerId;
         }
+    }
 
-        const listContainer = document.getElementById('meal-list');
-        listContainer.innerHTML = ''; 
+    function veranderGebruiker() {
+        const select = document.getElementById('user-select');
+        huidigeGebruikerId = select.value ? parseInt(select.value) : null;
+        tekenMaaltijden();
+    }
 
-        data.forEach(maaltijd => {
+    function tekenMaaltijden() {
+        const list = document.getElementById('meal-list');
+        list.innerHTML = '';
+
+        appData.maaltijden.forEach(maaltijd => {
+            const ratings = appData.beoordelingen.filter(b => b.maaltijd_id === maaltijd.id);
+            
+            let gemiddelde = 0;
+            if (ratings.length > 0) {
+                const totaal = ratings.reduce((sum, r) => sum + r.sterren, 0);
+                gemiddelde = (totaal / ratings.length).toFixed(1);
+            }
+            
+            const sterPercentage = (gemiddelde / 5) * 100;
+
+            let mijnRating = 0;
+            if (huidigeGebruikerId) {
+                const mijnBeoordeling = ratings.find(b => b.deelnemer_id === huidigeGebruikerId);
+                if (mijnBeoordeling) mijnRating = mijnBeoordeling.sterren;
+            }
+
             const itemDiv = document.createElement('div');
             itemDiv.className = 'meal-item';
             
-            const datumStr = maaltijd.laatst_gegeten ? new Date(maaltijd.laatst_gegeten).toLocaleDateString('nl-NL') : 'Nog niet gegeten';
-
             itemDiv.innerHTML = `
-                <div>
-                    <div class="meal-name">${maaltijd.naam}</div>
-                    <div class="meal-date">Laatst gegeten: ${datumStr}</div>
+                <div class="meal-header">
+                    <span class="meal-name">${maaltijd.naam}</span>
+                    <div>
+                        <div class="stars-outer">
+                            <div class="stars-inner" style="width: ${sterPercentage}%"></div>
+                        </div>
+                        <span class="rating-text">${gemiddelde} (${ratings.length})</span>
+                    </div>
                 </div>
-                <div>⭐ (0.0)</div>
+                
+                <div class="my-rating-box ${huidigeGebruikerId ? 'active' : ''}">
+                    <span>Jouw score:</span>
+                    <div>
+                        ${[1, 2, 3, 4, 5].map(num => `
+                            <button class="rate-btn ${mijnRating === num ? 'selected' : ''}" 
+                                    onclick="geefRating(${maaltijd.id}, ${num})">★</button>
+                        `).join('')}
+                    </div>
+                </div>
             `;
-            listContainer.appendChild(itemDiv);
+            
+            list.appendChild(itemDiv);
         });
     }
 
-    haalMaaltijdenOp();
-</script>
+    async function geefRating(maaltijdId, sterren) {
+        if (!huidigeGebruikerId) return alert("Kies eerst wie je bent bovenaan de pagina!");
 
-</body>
-</html>
+        const { error } = await db.from('beoordelingen').upsert({
+            maaltijd_id: maaltijdId,
+            deelnemer_id: huidigeGebruikerId,
+            sterren: sterren
+        }, { onConflict: 'maaltijd_id,deelnemer_id' });
 
+        if (error) {
+            console.error(error);
+            alert("Fout bij opslaan!");
+        } else {
+            laadAlleData(); 
+        }
+    }
+
+    // Toggles de zichtbaarheid van het formulier
+    function toggleToevoegen() {
+        const form = document.getElementById('add-meal-form');
+        form.classList.toggle('active');
+    }
+
+    // Nieuwe functie om een maaltijd naar Supabase te sturen
+    async function voegMaaltijdToe() {
+        const naamVeld = document.getElementById('new-meal-name');
+        const naam = naamVeld.value.trim();
+
+        if (naam === '') {
+            alert("Vul
