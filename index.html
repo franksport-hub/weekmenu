@@ -24,57 +24,6 @@
 
 <script>
     // --- JOUW SUPABASE GEGEVENS HIER ---
-    // 1. Ga in Supabase naar 'Project Settings' (het tandwiel) -> 'API'
-    // 2. Kopieer de 'Project URL' en plak hem hieronder:
-    const SUPABASE_URL= 'https://ythfhzepuwggfcpoyvem.supabase.co';
-    // 3. Kopieer de 'anon public' sleutel en plak hem hieronder:
-    const SUPABASE_KEY= 'sb_publishable_bmRk9F8MjM3-gGe_6fVDMA_0fVUfkkg'; 
-
-    // Initialiseer Supabase
-    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-    // Functie om de data op te halen en op het scherm te zetten
-    async function haalMaaltijdenOp() {
-        const { data, error } = await supabase
-            .from('maaltijden')
-            .select('*');
-
-        if (error) {
-            console.error("Fout bij ophalen:", error);
-            document.getElementById('meal-list').innerHTML = "Er ging iets mis bij het ophalen van de data.";
-            return;
-        }
-
-        const listContainer = document.getElementById('meal-list');
-        listContainer.innerHTML = ''; // Maak de "Laden..." tekst leeg
-
-        data.forEach(maaltijd => {
-            const itemDiv = document.createElement('div');
-            itemDiv.className = 'meal-item';
-            
-            // Format de datum
-            const datumStr = maaltijd.laatst_gegeten ? new Date(maaltijd.laatst_gegeten).toLocaleDateString('nl-NL') : 'Nog niet gegeten';
-
-            itemDiv.innerHTML = `
-                <div>
-                    <div class="meal-name">${maaltijd.naam}</div>
-                    <div class="meal-date">Laatst gegeten: ${datumStr}</div>
-                </div>
-                <div>⭐ (Ratings komen later)</div>
-            `;
-            listContainer.appendChild(itemDiv);
-        });
-    }
-
-    // Start de functie zodra de pagina is geladen
-    haalMaaltijdenOp();
-</script>
-
-</body>
-</html>
-
-<script>
-    // --- JOUW SUPABASE GEGEVENS HIER ---
     const SUPABASE_URL = 'https://ythfhzepuwggfcpoyvem.supabase.co';
     const SUPABASE_KEY = 'sb_publishable_bmRk9F8MjM3-gGe_6fVDMA_0fVUfkkg'; 
     // OPLOSSING: We noemen dit nu 'db' in plaats van 'supabase'
@@ -116,3 +65,7 @@
 
     haalMaaltijdenOp();
 </script>
+
+</body>
+</html>
+
