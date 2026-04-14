@@ -6,7 +6,7 @@
     <title>Weekmenu</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        :root { --primary: #007bff; --bg: #f4f4f9; --text: #333; }
+        :root { --primary: #007bff; --bg: #f4f4f9; --text: #333; --success: #28a745; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 0; }
         header { background: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 100; }
         .app-container { max-width: 600px; margin: 20px auto; padding: 0 15px; }
@@ -17,35 +17,42 @@
         .overlay.open { display: block; }
         select, input { padding: 12px; font-size: 1em; border-radius: 8px; border: 1px solid #ddd; width: 100%; box-sizing: border-box; margin-bottom: 10px; }
         .btn { background: var(--primary); color: white; border: none; padding: 12px; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; }
-        .planner-day { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; }
-        .planner-date { font-weight: bold; width: 100px; }
-        .planner-select { flex-grow: 1; max-width: 180px; margin: 0; }
-        .stars-outer { display: inline-block; position: relative; color: #e0e0e0; font-size: 1.2em; }
+        
+        .planner-day { padding: 15px 0; border-bottom: 1px solid #eee; }
+        .planner-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+        .planner-date { font-weight: bold; width: 90px; font-size: 0.9em; }
+        .planner-select { flex-grow: 1; margin: 0; }
+        
+        .inline-rating { display: flex; gap: 2px; margin-top: 8px; justify-content: flex-end; }
+        .mini-rate { background: none; border: 1px solid #eee; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 0.8em; color: #ccc; }
+        .mini-rate.selected { color: #ffc107; border-color: #ffc107; background: #fffde7; }
+
+        .status-list { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+        .user-chip { padding: 5px 12px; border-radius: 20px; background: #eee; font-size: 0.85em; display: flex; align-items: center; gap: 5px; }
+        .user-chip.ready { background: var(--success); color: white; }
+
+        .stars-outer { display: inline-block; position: relative; color: #e0e0e0; font-size: 1em; }
         .stars-outer::before { content: "★★★★★"; }
         .stars-inner { position: absolute; top: 0; left: 0; white-space: nowrap; overflow: hidden; color: #ffc107; }
         .stars-inner::before { content: "★★★★★"; }
-        .rating-box { display: none; background: #f8f9fa; padding: 10px; border-radius: 8px; justify-content: space-between; align-items: center; margin-top: 10px; }
-        .rating-box.active { display: flex; }
-        .rate-btn { background: white; border: 1px solid #ddd; border-radius: 50%; width: 32px; height: 32px; cursor: pointer; color: #ccc; margin-left: 2px; }
-        .rate-btn.selected { color: #ffc107; border-color: #ffc107; }
     </style>
 </head>
 <body>
 
 <header>
-    <h1 onclick="location.reload()" style="cursor:pointer">Weekmenu</h1>
+    <h1 onclick="location.reload()" style="cursor:pointer">Weekmenu 🍽️</h1>
     <button onclick="toggleMenu()" style="font-size:1.8em; background:none; border:none; cursor:pointer">☰</button>
 </header>
 
 <div class="overlay" id="overlay" onclick="toggleMenu()"></div>
 <div class="side-menu" id="sideMenu">
     <button onclick="toggleMenu()" style="float:right; border:none; background:none; font-size:1.5em">✕</button>
-    <h2 style="margin-top:40px">Instellingen</h2>
-    <p>Gezinslid:</p>
+    <h2 style="margin-top:40px">Beheer</h2>
+    <p>Nieuw gezinslid:</p>
     <input type="text" id="new-person-name" placeholder="Naam">
     <button class="btn" onclick="voegPersoonToe()">Toevoegen</button>
     <hr>
-    <p>Gerecht:</p>
+    <p>Nieuw gerecht:</p>
     <input type="text" id="new-meal-name" placeholder="Naam gerecht">
     <button class="btn" onclick="voegMaaltijdToe()">Opslaan</button>
 </div>
@@ -54,11 +61,14 @@
     <div class="card">
         <label><strong>Wie ben jij?</strong></label>
         <select id="user-select" onchange="veranderGebruiker()" style="margin-top:10px"></select>
+        <div class="status-list" id="status-list"></div>
     </div>
+
     <div class="card">
-        <h2 style="margin-top:0; font-size:1.2em">📅 Deze Week</h2>
+        <h2 style="margin-top:0; font-size: 1.2em">📅 Planning & Stemmen</h2>
         <div id="planner-list">Laden...</div>
     </div>
+
     <div id="meal-list" class="card">Gerechten laden...</div>
 </div>
 
@@ -68,7 +78,7 @@
     const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     let appData = { deelnemers: [], maaltijden: [], beoordelingen: [], planning: [] };
-    let huidigeGebruikerId = null; // Dit blijft bewaard in het geheugen
+    let huidigeGebruikerId = null;
 
     function toggleMenu() {
         document.getElementById('sideMenu').classList.toggle('open');
@@ -86,11 +96,10 @@
             appData = { deelnemers: d.data||[], maaltijden: m.data||[], beoordelingen: b.data||[], planning: p.data||[] };
             
             vulUserSelect();
+            tekenStatus();
             tekenPlanner();
             tekenGerechten();
-        } catch (e) {
-            console.error(e);
-        }
+        } catch (e) { console.error(e); }
     }
 
     function vulUserSelect() {
@@ -100,9 +109,27 @@
     }
 
     function veranderGebruiker() {
-        // Update de globale variabele zodra je iemand kiest
         huidigeGebruikerId = parseInt(document.getElementById('user-select').value) || null;
+        tekenStatus();
+        tekenPlanner();
         tekenGerechten();
+    }
+
+    function tekenStatus() {
+        const container = document.getElementById('status-list');
+        container.innerHTML = '';
+        appData.deelnemers.forEach(u => {
+            const geplandDezeWeek = appData.planning.map(p => p.maaltijd_id);
+            const mijnRatings = appData.beoordelingen.filter(b => b.deelnemer_id === u.id && geplandDezeWeek.includes(b.maaltijd_id));
+            const isKlaar = mijnRatings.length >= appData.planning.length && appData.planning.length > 0;
+            
+            container.innerHTML += `<div class="user-chip ${isKlaar ? 'ready' : ''}">${isKlaar ? '✅' : '⏳'} ${u.naam}</div>`;
+        });
+    }
+
+    function getGemiddelde(mid) {
+        const rb = appData.beoordelingen.filter(x => x.maaltijd_id === mid);
+        return rb.length ? (rb.reduce((a,b)=>a+b.sterren, 0)/rb.length).toFixed(1) : "0.0";
     }
 
     function tekenPlanner() {
@@ -113,59 +140,48 @@
             const d = new Date(); d.setDate(d.getDate() + i);
             const iso = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
             const gepland = appData.planning.find(x => x.datum === iso);
+            const mid = gepland?.maaltijd_id;
             
-            let opts = '<option value="">-- Kies --</option>' + 
-                appData.maaltijden.map(m => `<option value="${m.id}" ${gepland?.maaltijd_id==m.id?'selected':''}>${m.naam}</option>`).join('');
+            let opts = '<option value="">-- Wat eten we? --</option>' + 
+                appData.maaltijden.map(m => `<option value="${m.id}" ${mid==m.id?'selected':''}>${m.naam} (${getGemiddelde(m.id)} ⭐)</option>`).join('');
+
+            const mijnRating = mid && huidigeGebruikerId ? appData.beoordelingen.find(x => x.maaltijd_id === mid && x.deelnemer_id === huidigeGebruikerId)?.sterren : 0;
 
             list.innerHTML += `<div class="planner-day">
-                <div class="planner-date">${i==0?'Vandaag':dagen[d.getDay()]+' '+d.getDate()}</div>
-                <select class="planner-select" onchange="plan('${iso}', this.value)">${opts}</select>
+                <div class="planner-row">
+                    <div class="planner-date">${i==0?'Vandaag':dagen[d.getDay()]+' '+d.getDate()}</div>
+                    <select class="planner-select" onchange="plan('${iso}', this.value)">${opts}</select>
+                </div>
+                ${mid && huidigeGebruikerId ? `<div class="inline-rating">
+                    <span style="font-size:0.75em; margin-right:5px; align-self:center">Jouw score:</span>
+                    ${[1,2,3,4,5].map(n => `<button class="mini-rate ${mijnRating==n?'selected':''}" onclick="rate(${mid},${n})">${n}★</button>`).join('')}
+                </div>` : ''}
             </div>`;
         }
     }
 
     async function plan(datum, mid) {
-        if(!mid) {
-            await db.from('weekplanning').delete().eq('datum', datum);
-        } else {
-            // Voeg 'dag' toe als fallback omdat de database kolom 'NOT NULL' kan zijn
-            await db.from('weekplanning').upsert({ datum, maaltijd_id: parseInt(mid), dag: 'n.v.t.' }, { onConflict: 'datum' });
-        }
-        await laadData(); // Wacht tot data ververst is
-    }
-
-    function tekenGerechten() {
-        const list = document.getElementById('meal-list');
-        list.innerHTML = '<h2 style="margin-top:0; font-size:1.2em">Alle Gerechten</h2>';
-        appData.maaltijden.forEach(m => {
-            const rb = appData.beoordelingen.filter(x => x.maaltijd_id === m.id);
-            const gem = rb.length ? (rb.reduce((a,b)=>a+b.sterren, 0)/rb.length).toFixed(1) : 0;
-            
-            // Zoek specifiek de score van de huidige gebruiker
-            const mijnBeoordeling = appData.beoordelingen.find(x => x.maaltijd_id === m.id && x.deelnemer_id === huidigeGebruikerId);
-            const mijnScore = mijnBeoordeling ? mijnBeoordeling.sterren : 0;
-
-            list.innerHTML += `<div style="padding:15px 0; border-bottom:1px solid #eee">
-                <div style="display:flex; justify-content:space-between">
-                    <strong>${m.naam}</strong>
-                    <span><div class="stars-outer"><div class="stars-inner" style="width:${gem*20}%"></div></div> ${gem}</span>
-                </div>
-                <div class="rating-box ${huidigeGebruikerId ? 'active' : ''}">
-                    <span style="font-size:0.8em;">Jouw score:</span>
-                    <div>${[1,2,3,4,5].map(n => `<button class="rate-btn ${mijnScore === n ? 'selected' : ''}" onclick="rate(${m.id},${n})">★</button>`).join('')}</div>
-                </div>
-            </div>`;
-        });
+        if(!mid) await db.from('weekplanning').delete().eq('datum', datum);
+        else await db.from('weekplanning').upsert({ datum, maaltijd_id: parseInt(mid), dag: 'n.v.t.' }, { onConflict: 'datum' });
+        await laadData();
     }
 
     async function rate(mid, s) {
         if(!huidigeGebruikerId) return;
-        await db.from('beoordelingen').upsert({ 
-            maaltijd_id: mid, 
-            deelnemer_id: huidigeGebruikerId, 
-            sterren: s 
-        }, { onConflict: 'maaltijd_id,deelnemer_id' });
+        await db.from('beoordelingen').upsert({ maaltijd_id: mid, deelnemer_id: huidigeGebruikerId, sterren: s }, { onConflict: 'maaltijd_id,deelnemer_id' });
         await laadData();
+    }
+
+    function tekenGerechten() {
+        const list = document.getElementById('meal-list');
+        list.innerHTML = '<h2 style="margin-top:0; font-size:1.2em">Gerechten Database</h2>';
+        appData.maaltijden.forEach(m => {
+            const gem = getGemiddelde(m.id);
+            list.innerHTML += `<div style="padding:10px 0; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center">
+                <strong>${m.naam}</strong>
+                <span><div class="stars-outer"><div class="stars-inner" style="width:${gem*20}%"></div></div></span>
+            </div>`;
+        });
     }
 
     async function voegPersoonToe() {
