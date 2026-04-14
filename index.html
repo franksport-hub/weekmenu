@@ -72,3 +72,47 @@
 
 </body>
 </html>
+
+<script>
+    // --- JOUW SUPABASE GEGEVENS HIER ---
+    const SUPABASE_URL = 'https://ythfhzepuwggfcpoyvem.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_bmRk9F8MjM3-gGe_6fVDMA_0fVUfkkg'; 
+    // OPLOSSING: We noemen dit nu 'db' in plaats van 'supabase'
+    const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // Functie om de data op te halen en op het scherm te zetten
+    async function haalMaaltijdenOp() {
+        
+        // OPLOSSING: We gebruiken hier ook 'db'
+        const { data, error } = await db
+            .from('maaltijden')
+            .select('*');
+
+        if (error) {
+            console.error("Fout bij ophalen:", error);
+            document.getElementById('meal-list').innerHTML = "Er ging iets mis bij het ophalen van de data.";
+            return;
+        }
+
+        const listContainer = document.getElementById('meal-list');
+        listContainer.innerHTML = ''; 
+
+        data.forEach(maaltijd => {
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'meal-item';
+            
+            const datumStr = maaltijd.laatst_gegeten ? new Date(maaltijd.laatst_gegeten).toLocaleDateString('nl-NL') : 'Nog niet gegeten';
+
+            itemDiv.innerHTML = `
+                <div>
+                    <div class="meal-name">${maaltijd.naam}</div>
+                    <div class="meal-date">Laatst gegeten: ${datumStr}</div>
+                </div>
+                <div>⭐ (0.0)</div>
+            `;
+            listContainer.appendChild(itemDiv);
+        });
+    }
+
+    haalMaaltijdenOp();
+</script>
