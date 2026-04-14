@@ -6,75 +6,179 @@
     <title>Weekmenu</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #f4f4f9; padding: 15px; margin: 0; }
-        .app-container { max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        h1 { color: #333; text-align: center; margin-top: 0; }
+        :root { --primary: #007bff; --bg: #f4f4f9; --text: #333; }
+        body { font-family: -apple-system, sans-serif; background-color: var(--bg); color: var(--text); padding: 0; margin: 0; }
         
-        /* Gebruiker Selectie */
-        .user-selector { background: #eef2f5; padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: center; }
-        select, input[type="text"] { padding: 10px; font-size: 1em; border-radius: 6px; border: 1px solid #ccc; width: 100%; max-width: 300px; margin-bottom: 10px; }
+        /* Header & Nav */
+        header { background: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 100; }
+        h1 { margin: 0; font-size: 1.4em; }
         
-        .link-btn { background: none; border: none; color: #007bff; text-decoration: underline; cursor: pointer; font-size: 0.85em; margin-top: 5px; }
+        .hamburger { cursor: pointer; font-size: 1.8em; background: none; border: none; padding: 0; }
+        
+        /* Zijmenu */
+        .side-menu { position: fixed; top: 0; right: -300px; width: 280px; height: 100%; background: white; box-shadow: -2px 0 10px rgba(0,0,0,0.1); transition: 0.3s; z-index: 200; padding: 20px; box-sizing: border-box; }
+        .side-menu.open { right: 0; }
+        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); display: none; z-index: 150; }
+        .overlay.open { display: block; }
+        .close-btn { background: none; border: none; font-size: 1.5em; float: right; cursor: pointer; }
 
-        /* Weekplanner */
-        .planner-section { background: #fff; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 2px solid #eef2f5; }
-        .planner-section h2 { margin-top: 0; font-size: 1.2em; color: #333; text-align: center; margin-bottom: 15px; }
-        .planner-day { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; }
+        /* Container */
+        .app-container { max-width: 600px; margin: 20px auto; padding: 0 15px; }
+        
+        .card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        
+        select, input { padding: 12px; font-size: 1em; border-radius: 8px; border: 1px solid #ddd; width: 100%; box-sizing: border-box; margin-bottom: 10px; }
+        .btn { background: var(--primary); color: white; border: none; padding: 12px; border-radius: 8px; font-size: 1em; cursor: pointer; width: 100%; font-weight: bold; }
+        
+        /* Planner */
+        .planner-day { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #eee; }
         .planner-day:last-child { border-bottom: none; }
-        .planner-date { font-weight: bold; font-size: 0.95em; width: 110px; color: #444; }
-        .planner-select { flex-grow: 1; max-width: 65%; margin-bottom: 0; background-color: #fcfcfc; }
+        .planner-date { font-weight: bold; width: 100px; color: #555; }
+        .planner-select { flex-grow: 1; margin: 0; }
 
-        /* Nieuwe toevoeg-secties */
-        .add-meal-section { text-align: center; margin-bottom: 20px; padding-top: 20px; border-top: 2px dashed #eee; }
-        .btn { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 6px; font-size: 1em; cursor: pointer; font-weight: bold; }
-        .btn:hover { background: #0056b3; }
-        .add-form { display: none; background: #eef2f5; padding: 15px; border-radius: 8px; margin-top: 10px; }
-        .add-form.active { display: block; }
-
-        /* Maaltijd Lijst */
-        .meal-item { padding: 15px 0; border-bottom: 1px solid #eee; display: flex; flex-direction: column; gap: 10px; }
-        .meal-item:last-child { border-bottom: none; }
-        .meal-header { display: flex; justify-content: space-between; align-items: center; }
+        /* Maaltijden */
+        .meal-item { padding: 15px 0; border-bottom: 1px solid #eee; }
+        .meal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
         .meal-name { font-weight: bold; font-size: 1.1em; }
         
-        /* Sterren */
-        .stars-outer { display: inline-block; position: relative; color: #e0e0e0; font-size: 1.2em; letter-spacing: 2px; }
+        .stars-outer { display: inline-block; position: relative; color: #e0e0e0; font-size: 1.2em; }
         .stars-outer::before { content: "★★★★★"; }
         .stars-inner { position: absolute; top: 0; left: 0; white-space: nowrap; overflow: hidden; color: #ffc107; }
         .stars-inner::before { content: "★★★★★"; }
-        .rating-text { font-size: 0.9em; color: #666; margin-left: 5px; }
-
-        .my-rating-box { background: #f9f9f9; padding: 10px; border-radius: 6px; font-size: 0.9em; display: none; align-items: center; justify-content: space-between;}
-        .my-rating-box.active { display: flex; }
-        .rate-btn { background: none; border: 1px solid #ccc; font-size: 1.2em; cursor: pointer; border-radius: 50%; width: 35px; height: 35px; color: #ccc; transition: 0.2s; }
-        .rate-btn.selected { color: #ffc107; border-color: #ffc107; background: #fffde7; transform: scale(1.1); }
+        
+        .rating-box { display: none; background: #f8f9fa; padding: 10px; border-radius: 8px; justify-content: space-between; align-items: center; margin-top: 10px; }
+        .rating-box.active { display: flex; }
+        .rate-btn { background: white; border: 1px solid #ddd; border-radius: 50%; width: 35px; height: 35px; cursor: pointer; color: #ccc; }
+        .rate-btn.selected { color: #ffc107; border-color: #ffc107; background: #fffde7; }
     </style>
 </head>
 <body>
 
-<div class="app-container">
-    <h1>🍽️ Weekmenu</h1>
+<header>
+    <h1>Weekmenu</h1>
+    <button class="hamburger" onclick="toggleMenu()">☰</button>
+</header>
+
+<div class="overlay" id="overlay" onclick="toggleMenu()"></div>
+
+<div class="side-menu" id="sideMenu">
+    <button class="close-btn" onclick="toggleMenu()">✕</button>
+    <h2 style="margin-top: 40px;">Instellingen</h2>
     
-    <div class="user-selector">
-        <strong>Wie ben jij?</strong><br>
-        <select id="user-select" onchange="veranderGebruiker()">
+    <hr>
+    <h3>Gezinslid toevoegen</h3>
+    <input type="text" id="new-person-name" placeholder="Naam">
+    <button class="btn" style="background: #28a745;" onclick="voegPersoonToe()">Toevoegen</button>
+    
+    <hr>
+    <h3>Gerecht toevoegen</h3>
+    <input type="text" id="new-meal-name" placeholder="Naam gerecht">
+    <button class="btn" onclick="voegMaaltijdToe()">Gerecht opslaan</button>
+</div>
+
+<div class="app-container">
+    <div class="card">
+        <label><strong>Wie ben jij?</strong></label>
+        <select id="user-select" onchange="veranderGebruiker()" style="margin-top:10px;">
             <option value="">-- Kies je naam --</option>
         </select>
-        <br>
-        <button class="link-btn" onclick="togglePersoonToevoegen()">+ Nieuw gezinslid toevoegen</button>
-        
-        <div id="add-person-form" class="add-form">
-            <input type="text" id="new-person-name" placeholder="Naam van gezinslid">
-            <button class="btn" style="background: #28a745; padding: 8px 15px;" onclick="voegPersoonToe()">Toevoegen</button>
-        </div>
     </div>
 
-    <div class="planner-section">
-        <h2>📅 Deze Week</h2>
-        <div id="planner-list">Planner laden...</div>
+    <div class="card">
+        <h2 style="margin-top:0; font-size: 1.2em;">📅 Deze Week</h2>
+        <div id="planner-list">Laden...</div>
     </div>
 
-    <div class="add-meal-section">
-        <button class="btn" onclick="toggleGerechtToevoegen()">+ Nieuw Gerecht</button>
-        <div id="add-meal-form" class="add-form">
-            <input type="text" id="new-meal-name" placeholder="Naam van het gerecht (bijv. Taco's)">
+    <div id="meal-list" class="card">Laden van maaltijden...</div>
+</div>
+
+<script>
+    const SUPABASE_URL = 'https://ythfhzepuwggfcpoyvem.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_bmRk9F8MjM3-gGe_6fVDMA_0fVUfkkg'; 
+    const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    let appData = { deelnemers: [], maaltijden: [], beoordelingen: [], planning: [] };
+    let huidigeGebruikerId = null;
+
+    // Menu functies
+    function toggleMenu() {
+        document.getElementById('sideMenu').classList.toggle('open');
+        document.getElementById('overlay').classList.toggle('open');
+    }
+
+    async function laadAlleData() {
+        const [deelnemersRes, maaltijdenRes, beoordelingenRes, planningRes] = await Promise.all([
+            db.from('deelnemers').select('*').order('id'),
+            db.from('maaltijden').select('*').order('naam'),
+            db.from('beoordelingen').select('*'),
+            db.from('weekplanning').select('*')
+        ]);
+        appData.deelnemers = deelnemersRes.data || [];
+        appData.maaltijden = maaltijdenRes.data || [];
+        appData.beoordelingen = beoordelingenRes.data || [];
+        appData.planning = planningRes.data || [];
+        vulDropdown();
+        tekenPlanner();
+        tekenMaaltijden();
+    }
+
+    function vulDropdown() {
+        const select = document.getElementById('user-select');
+        const huidigeSelectie = select.value;
+        select.innerHTML = '<option value="">-- Kies je naam --</option>';
+        appData.deelnemers.forEach(d => {
+            select.innerHTML += `<option value="${d.id}">${d.naam}</option>`;
+        });
+        select.value = huidigeSelectie || "";
+    }
+
+    function veranderGebruiker() {
+        huidigeGebruikerId = document.getElementById('user-select').value ? parseInt(document.getElementById('user-select').value) : null;
+        tekenMaaltijden();
+    }
+
+    async function voegPersoonToe() {
+        const naam = document.getElementById('new-person-name').value.trim();
+        if (!naam) return;
+        const { error } = await db.from('deelnemers').insert([{ naam }]);
+        if (!error) { document.getElementById('new-person-name').value = ''; laadAlleData(); toggleMenu(); }
+    }
+
+    async function voegMaaltijdToe() {
+        const naam = document.getElementById('new-meal-name').value.trim();
+        if (!naam) return;
+        const { error } = await db.from('maaltijden').insert([{ naam }]);
+        if (!error) { document.getElementById('new-meal-name').value = ''; laadAlleData(); toggleMenu(); }
+    }
+
+    function tekenPlanner() {
+        const list = document.getElementById('planner-list');
+        list.innerHTML = '';
+        const dagen = ['Zo', 'Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za'];
+        for(let i = 0; i < 7; i++) {
+            const d = new Date(); d.setDate(d.getDate() + i);
+            const iso = new Date(d.getTime() - (d.getTimezoneOffset()*60000)).toISOString().split('T')[0];
+            const gepland = appData.planning.find(p => p.datum === iso);
+            
+            let options = '<option value="">-- Kies --</option>';
+            appData.maaltijden.forEach(m => options += `<option value="${m.id}" ${gepland?.maaltijd_id == m.id ? 'selected' : ''}>${m.naam}</option>`);
+
+            list.innerHTML += `
+                <div class="planner-day">
+                    <div class="planner-date">${i==0?'Vandaag':dagen[d.getDay()]+' '+d.getDate()}</div>
+                    <select class="planner-select" onchange="planMaaltijd('${iso}', this.value)">${options}</select>
+                </div>`;
+        }
+    }
+
+    async function planMaaltijd(datum, mId) {
+        if (!mId) await db.from('weekplanning').delete().match({ datum });
+        else await db.from('weekplanning').upsert({ datum, maaltijd_id: parseInt(mId) }, { onConflict: 'datum' });
+        laadAlleData();
+    }
+
+    function tekenMaaltijden() {
+        const list = document.getElementById('meal-list');
+        list.innerHTML = '<h3>Alle Gerechten</h3>';
+        appData.maaltijden.forEach(m => {
+            const ratings = appData.beoordelingen.filter(b => b.maaltijd
