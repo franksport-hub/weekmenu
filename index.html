@@ -64,7 +64,9 @@
     <button onclick="toggleMenu()" style="float:right; border:none; background:none; font-size:1.5em">✕</button>
     <h2 style="margin-top:40px">Instellingen</h2>
     
-    <div id="admin-only-tools" style="display:none; border-top: 2px solid #eee; padding-top:10px">
+    <div id="setup-msg" style="display:none; margin-top: 20px;"></div>
+
+    <div id="admin-only-tools" style="display:none; border-top: 2px solid #eee; padding-top:10px; margin-top: 10px;">
         <p style="color: var(--primary); font-weight:bold; margin-bottom: 5px;">🛡️ Beheerders paneel</p>
         
         <div id="admin-user-list" style="margin: 15px 0; padding: 10px; background: #f9f9f9; border-radius: 8px;">
@@ -119,4 +121,92 @@
     async function laadData() {
         try {
             const [d, m, b, p] = await Promise.all([
-                db.from
+                db.from('deelnemers').select('*').order('naam'),
+                db.from('maaltijden').select('*').order('naam'),
+                db.from('beoordelingen').select('*'),
+                db.from('weekplanning').select('*')
+            ]);
+            
+            appData = { 
+                deelnemers: d.data || [], 
+                maaltijden: m.data || [], 
+                beoordelingen: b.data || [], 
+                planning: p.data || [] 
+            };
+            
+            vulUserSelect();
+            tekenAlles();
+        } catch (e) { 
+            console.error(e);
+            alert("Er ging iets mis bij het laden. Controleer je internetverbinding.");
+        }
+    }
+
+    function vulUserSelect() {
+        const s = document.getElementById('user-select');
+        s.innerHTML = '<option value="">-- Kies je naam --</option>' + 
+            appData.deelnemers.map(u => `<option value="${u.id}" ${u.id === huidigeGebruikerId ? 'selected' : ''}>${u.naam}</option>`).join('');
+    }
+
+    function veranderGebruiker() {
+        const val = document.getElementById('user-select').value;
+        huidigeGebruikerId = val ? parseInt(val) : null;
+        if(huidigeGebruikerId) {
+            localStorage.setItem('weekmenu_userid', huidigeGebruikerId);
+        } else {
+            localStorage.removeItem('weekmenu_userid');
+        }
+        tekenAlles();
+    }
+
+    function tekenAlles() {
+        tekenStatus();
+        tekenPlanner();
+        tekenGerechten();
+        tekenAdminInstellingen();
+    }
+
+    function tekenStatus() {
+        const container = document.getElementById('status-list');
+        container.innerHTML = '';
+        const geplandeMaaltijdIds = appData.planning.map(p => p.maaltijd_id).filter(id => id != null);
+        
+        appData.deelnemers.forEach(u => {
+            const mijnRatings = appData.beoordelingen.filter(b => b.deelnemer_id === u.id && geplandeMaaltijdIds.includes(b.maaltijd_id));
+            const isKlaar = geplandeMaaltijdIds.length > 0 && mijnRatings.length >= geplandeMaaltijdIds.length;
+            const adminBadge = u.is_admin ? '<span class="admin-badge">Admin</span>' : '';
+            
+            container.innerHTML += `<div class="user-chip ${isKlaar ? 'ready' : ''}">${isKlaar ? '✅' : '⏳'} ${u.naam} ${adminBadge}</div>`;
+        });
+    }
+
+    function getGemiddelde(mid) {
+        const rb = appData.beoordelingen.filter(x => x.maaltijd_id === mid);
+        return rb.length ? (rb.reduce((a,b)=>a+b.sterren, 0)/rb.length).toFixed(1) : "0.0";
+    }
+
+    function tekenPlanner() {
+        const list = document.getElementById('planner-list');
+        list.innerHTML = '';
+        
+        const isMenuDefinitief = appData.planning.some(p => p.is_definitief === true);
+        const isAdmin = appData.deelnemers.find(u => u.id === huidigeGebruikerId)?.is_admin;
+
+        if (isMenuDefinitief) {
+            list.innerHTML += `<div style="background:#e8f4f8; color:#0c5460; border: 1px solid #bee5eb; padding:10px; border-radius:8px; margin-bottom:15px; font-size:0.85em;">
+                🔒 Het menu voor deze week is definitief. Alleen admins kunnen nog wijzigingen aanbrengen.
+            </div>`;
+        }
+
+        const dagen = ['Zo', 'Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za'];
+        
+        for(let i=0; i<7; i++) {
+            const d = new Date(); d.setDate(d.getDate() + i);
+            const iso = d.toISOString().split('T')[0];
+            const gepland = appData.planning.find(x => x.datum === iso);
+            const mid = gepland?.maaltijd_id;
+            
+            const magAanpassen = !isMenuDefinitief || isAdmin;
+
+            let opts = '<option value="">-- Kies gerecht --</option>' + 
+                appData.maaltijden.map(m => `<option value="${m.id}" ${mid==m.id?'selected':''}>${m.naam} (${getGemiddelde(m.id)} ⭐)</
