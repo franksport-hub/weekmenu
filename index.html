@@ -8,9 +8,10 @@
     <meta name="theme-color" content="#007bff">
     <link rel="icon" href="favicon.ico">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
+    
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        :root { --primary: #007bff; --bg: #f4f4f9; --text: #333; --success: #28a745; --star: #ffc107; }
+        :root { --primary: #007bff; --bg: #f4f4f9; --text: #333; --success: #28a745; --star: #ffc107; --danger: #dc3545; }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 0; }
         header { background: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 100; }
         
@@ -33,13 +34,14 @@
         .planner-day { padding: 15px 0; border-bottom: 1px solid #f0f0f0; }
         .planner-day:last-child { border-bottom: none; }
         .planner-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-        .planner-date { font-weight: bold; width: 100px; font-size: 0.9em; color: #666; }
-        .planner-select { flex-grow: 1; margin: 0; font-size: 0.95em; }
+        .planner-date { font-weight: bold; width: 85px; font-size: 0.9em; color: #666; flex-shrink: 0;}
+        .planner-select { flex-grow: 1; margin: 0; font-size: 0.95em; min-width: 0; }
 
         /* Rating system */
-        .inline-rating { display: flex; gap: 4px; margin-top: 10px; justify-content: flex-end; align-items: center; }
+        .inline-rating { display: flex; gap: 4px; margin-top: 5px; justify-content: flex-end; align-items: center; flex-wrap: wrap;}
         .mini-rate { background: white; border: 1px solid #ddd; border-radius: 6px; padding: 5px 10px; cursor: pointer; font-size: 0.85em; transition: 0.2s; }
         .mini-rate.selected { background: var(--star); color: white; border-color: var(--star); transform: scale(1.05); }
+        .mini-rate.veto-btn.selected { background: var(--danger); border-color: var(--danger); }
 
         /* Status & Chips */
         .status-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
@@ -60,7 +62,7 @@
 <body>
 
 <header>
-    <h1 onclick="location.reload()" style="cursor:pointer; font-size: 1.4em; margin:0">Weekmenu 🍽️</h1>
+    <h1 onclick="location.reload(true)" style="cursor:pointer; font-size: 1.4em; margin:0">Weekmenu 🍽️</h1>
     <button onclick="toggleMenu()" style="font-size:1.5em; background:none; border:none; cursor:pointer">⚙️</button>
 </header>
 
@@ -108,27 +110,21 @@
 </div>
 
 <script>
-    // Crash-beveiliging: Vang eventuele globale fouten op en laat ze zien op het scherm
     window.onerror = function(msg, url, line) {
         document.getElementById('ui-error').style.display = 'block';
         document.getElementById('ui-error').innerText = "Vastgelopen op regel " + line + ": " + msg;
     };
 
-    // Database connectie
     const SUPABASE_URL = 'https://ythfhzepuwggfcpoyvem.supabase.co';
     const SUPABASE_KEY = 'sb_publishable_bmRk9F8MjM3-gGe_6fVDMA_0fVUfkkg'; 
     const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     let appData = { deelnemers: [], maaltijden: [], beoordelingen: [], planning: [] };
-    
-    // Crash-veilige manier om LocalStorage op te halen
     let huidigeGebruikerId = null;
     try {
         const opgeslagen = localStorage.getItem('weekmenu_userid');
         if (opgeslagen) huidigeGebruikerId = parseInt(opgeslagen);
-    } catch (e) {
-        console.warn("Local storage niet beschikbaar.");
-    }
+    } catch (e) { console.warn("Local storage niet beschikbaar."); }
 
     function toggleMenu() {
         document.getElementById('sideMenu').classList.toggle('open');
@@ -147,17 +143,11 @@
             if (d.error) throw new Error("Fout deelnemers: " + d.error.message);
             if (p.error) throw new Error("Fout planning: " + p.error.message);
 
-            appData = { 
-                deelnemers: d.data || [], 
-                maaltijden: m.data || [], 
-                beoordelingen: b.data || [], 
-                planning: p.data || [] 
-            };
+            appData = { deelnemers: d.data || [], maaltijden: m.data || [], beoordelingen: b.data || [], planning: p.data || [] };
             
             vulUserSelect();
             tekenAlles();
         } catch (e) { 
-            console.error(e);
             document.getElementById('ui-error').style.display = 'block';
             document.getElementById('ui-error').innerHTML = "<b>Database fout:</b> " + e.message;
             document.getElementById('planner-list').innerHTML = "Laden mislukt.";
@@ -171,15 +161,11 @@
     }
 
     function veranderGebruiker() {
-        const val = document.getElementById('user-select').value;
-        huidigeGebruikerId = val ? parseInt(val) : null;
+        huidigeGebruikerId = parseInt(document.getElementById('user-select').value) || null;
         try {
-            if(huidigeGebruikerId) {
-                localStorage.setItem('weekmenu_userid', huidigeGebruikerId);
-            } else {
-                localStorage.removeItem('weekmenu_userid');
-            }
-        } catch (e) { /* Negeer localstorage restricties */ }
+            if(huidigeGebruikerId) localStorage.setItem('weekmenu_userid', huidigeGebruikerId);
+            else localStorage.removeItem('weekmenu_userid');
+        } catch (e) {}
         tekenAlles();
     }
 
@@ -196,6 +182,7 @@
         const geplandeMaaltijdIds = appData.planning.map(p => p.maaltijd_id).filter(id => id != null);
         
         appData.deelnemers.forEach(u => {
+            // Veto's (-1) tellen ook als 'gestemd' voor het afvinken van de week
             const mijnRatings = appData.beoordelingen.filter(b => b.deelnemer_id === u.id && geplandeMaaltijdIds.includes(b.maaltijd_id));
             const isKlaar = geplandeMaaltijdIds.length > 0 && mijnRatings.length >= geplandeMaaltijdIds.length;
             const adminBadge = u.is_admin ? '<span class="admin-badge">Admin</span>' : '';
@@ -203,12 +190,19 @@
         });
     }
 
+    // AANGEPAST: Negeer veto's (-1) bij het berekenen van het wiskundig gemiddelde
     function getGemiddelde(mid) {
-        const rb = appData.beoordelingen.filter(x => x.maaltijd_id === mid);
+        const rb = appData.beoordelingen.filter(x => x.maaltijd_id === mid && x.sterren > 0);
         return rb.length ? (rb.reduce((a,b)=>a+b.sterren, 0)/rb.length).toFixed(1) : "0.0";
     }
 
-function tekenPlanner() {
+    // NIEUW: Haal de namen op van mensen die een Veto hebben gegeven
+    function getVetoes(mid) {
+        const vetoBeoordelingen = appData.beoordelingen.filter(x => x.maaltijd_id === mid && x.sterren === -1);
+        return vetoBeoordelingen.map(v => appData.deelnemers.find(d => d.id === v.deelnemer_id)?.naam).filter(Boolean);
+    }
+
+    function tekenPlanner() {
         const list = document.getElementById('planner-list');
         list.innerHTML = '';
         
@@ -228,37 +222,49 @@ function tekenPlanner() {
             const iso = d.toISOString().split('T')[0];
             const gepland = appData.planning.find(x => x.datum === iso);
             const mid = gepland?.maaltijd_id;
-            
             const magAanpassen = !isMenuDefinitief || isAdmin;
 
-            // Het keuzemenu met de opties
+            // Het keuzemenu (Zonder de gemiddelde tekst er in, want we tonen het visueel)
             let opts = '<option value="">-- Kies gerecht --</option>' + 
                 appData.maaltijden.map(m => `<option value="${m.id}" ${mid==m.id?'selected':''}>${m.naam}</option>`).join('');
 
-            const mijnRating = (mid && huidigeGebruikerId) ? appData.beoordelingen.find(x => x.maaltijd_id === mid && x.deelnemer_id === huidigeGebruikerId)?.sterren : 0;
+            const mijnRating = (mid && huidigeGebruikerId) ? appData.beoordelingen.find(x => x.maaltijd_id === mid && x.deelnemer_id === huidigeGebruikerId)?.sterren : null;
             const dagNaam = i === 0 ? "Vandaag" : dagen[d.getDay()] + " " + d.getDate();
 
-            // NIEUW: Visuele weergave van de gemiddelde sterren rechts naast de dropdown
             let avgStarsHtml = '';
+            let vetoHtml = '';
+
             if (mid) {
                 const gem = getGemiddelde(mid);
+                const vetos = getVetoes(mid);
+
+                // Check voor veto's en bouw de rode tekst
+                if (vetos.length > 0) {
+                    vetoHtml = `<div style="color: var(--danger); font-size: 0.8em; font-weight: bold; margin-bottom: 5px; text-align: right;">🛑 Veto door: ${vetos.join(', ')}</div>`;
+                }
+
+                // De visuele vul-sterren naast de dropdown
                 avgStarsHtml = `
-                <div title="Gemiddelde: ${gem} sterren" style="min-width: 80px; text-align: right;">
-                    <div class="stars-outer" style="font-size: 0.9em;">
+                <div title="Gemiddelde: ${gem} sterren" style="width: 75px; text-align: center; flex-shrink: 0;">
+                    <div class="stars-outer" style="font-size: 1.1em;">
                         <div class="stars-inner" style="width:${gem*20}%"></div>
                     </div>
                 </div>`;
             }
 
-            // Jouw eigen stemknoppen
+            // De knoppen om zelf te stemmen
             let ratingHtml = '';
             if (mid && huidigeGebruikerId) {
                 ratingHtml = `
-                <div class="inline-rating">
-                    <span style="font-size:0.7em; color:#999; margin-right:5px">Jouw stem:</span>
-                    ${[1,2,3,4,5].map(n => `
-                        <button class="mini-rate ${mijnRating==n?'selected':''}" onclick="rate(${mid},${n})">${n}★</button>
-                    `).join('')}
+                <div style="display:flex; flex-direction:column; align-items:flex-end; margin-top:5px;">
+                    ${vetoHtml}
+                    <div class="inline-rating">
+                        <span style="font-size:0.7em; color:#999; margin-right:5px">Jouw stem:</span>
+                        <button class="mini-rate veto-btn ${mijnRating===-1?'selected':''}" onclick="rate(${mid},-1)">🛑 Veto</button>
+                        ${[1,2,3,4,5].map(n => `
+                            <button class="mini-rate ${mijnRating===n?'selected':''}" onclick="rate(${mid},${n})">${n}★</button>
+                        `).join('')}
+                    </div>
                 </div>`;
             }
 
@@ -267,19 +273,39 @@ function tekenPlanner() {
                 <div class="planner-row">
                     <div class="planner-date">${dagNaam}</div>
                     <select class="planner-select" ${!magAanpassen ? 'disabled' : ''} onchange="plan('${iso}', this.value)">${opts}</select>
-                    ${avgStarsHtml} </div>
+                    ${avgStarsHtml}
+                </div>
                 ${ratingHtml}
             </div>`;
         }
 
         if (isAdmin) {
             list.innerHTML += `
-                <button class="btn" style="background: ${isMenuDefinitief ? '#dc3545' : '#28a745'}; margin-top:20px;" onclick="maakDefinitief()">
+                <button class="btn" style="background: ${isMenuDefinitief ? 'var(--danger)' : 'var(--success)'}; margin-top:20px;" onclick="maakDefinitief()">
                     ${isMenuDefinitief ? '🔓 Menu weer vrijgeven' : '✅ Menu definitief maken'}
                 </button>`;
         }
     }
 
+    function tekenGerechten() {
+        const list = document.getElementById('meal-list');
+        list.innerHTML = '<h2 style="margin-top:0; font-size:1.2em">Gerechten Database</h2>';
+        const gesorteerd = [...appData.maaltijden].sort((a, b) => getGemiddelde(b.id) - getGemiddelde(a.id));
+        
+        gesorteerd.forEach(m => {
+            const gem = getGemiddelde(m.id);
+            const vetos = getVetoes(m.id);
+            const vetoBadge = vetos.length > 0 ? `<span style="font-size:0.75em; color:white; background:var(--danger); padding:2px 6px; border-radius:10px; margin-left:10px;">🛑 ${vetos.length} Veto</span>` : '';
+            
+            list.innerHTML += `
+            <div style="padding:10px 0; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center">
+                <div><strong>${m.naam}</strong>${vetoBadge}</div>
+                <div class="stars-outer"><div class="stars-inner" style="width:${gem*20}%"></div></div>
+            </div>`;
+        });
+    }
+
+    // --- SETUP LOGICA ---
     function tekenAdminInstellingen() {
         const adminSectie = document.getElementById('admin-only-tools');
         const noAdminMsg = document.getElementById('no-admin-msg');
@@ -295,13 +321,7 @@ function tekenPlanner() {
 
         if (totaalDeelnemers === 0) {
             setupMsg.style.display = 'block';
-            setupMsg.innerHTML = `
-                <div style="background: #e8f4f8; padding: 15px; border-radius: 8px;">
-                    <h4 style="margin-top:0">👋 Welkom bij de app!</h4>
-                    <p style="font-size: 0.9em;">Voeg jezelf toe als eerste gezinslid. Je wordt automatisch beheerder.</p>
-                    <input type="text" id="eerste-user-naam" placeholder="Jouw naam">
-                    <button class="btn" onclick="maakEersteGebruiker()">Start de App!</button>
-                </div>`;
+            setupMsg.innerHTML = `<div style="background:#e8f4f8; padding:15px; border-radius:8px;"><h4 style="margin-top:0">👋 Welkom!</h4><input type="text" id="eerste-user-naam" placeholder="Jouw naam"><button class="btn" style="margin-top:10px;" onclick="maakEersteGebruiker()">Start de App!</button></div>`;
             document.getElementById('sideMenu').classList.add('open');
             document.getElementById('overlay').classList.add('open');
             return;
@@ -309,61 +329,33 @@ function tekenPlanner() {
 
         if (totaalAdmins === 0) {
             setupMsg.style.display = 'block';
-            if (huidigeGebruikerId) {
-                setupMsg.innerHTML = `
-                    <div style="background: #fff3cd; color: #856404; padding: 15px; border-radius: 8px;">
-                        <strong>⚠️ Actie vereist</strong><br>
-                        Er is momenteel geen beheerder in de app. Omdat jij bent ingelogd, kun jij deze rol nu aannemen.
-                        <button class="btn" style="margin-top:10px; background:#28a745" onclick="claimAdminRechten()">Word Beheerder</button>
-                    </div>`;
-            } else {
-                setupMsg.innerHTML = `<p style="color: #d9534f; font-weight:bold; text-align:center;">Selecteer bovenaan eerst je naam om beheerder te worden.</p>`;
-            }
+            if (huidigeGebruikerId) setupMsg.innerHTML = `<div style="background:#fff3cd; color:#856404; padding:15px; border-radius:8px;"><strong>⚠️ Actie vereist</strong><br>Word Beheerder.<button class="btn" style="margin-top:10px; background:var(--success)" onclick="claimAdminRechten()">Bevestigen</button></div>`;
             return;
         }
 
-        if (!isAdmin) {
-            noAdminMsg.style.display = 'block';
-            return;
-        }
+        if (!isAdmin) return noAdminMsg.style.display = 'block';
         
         adminSectie.style.display = 'block';
         const lijst = document.getElementById('admin-user-list');
         lijst.innerHTML = '<h4 style="margin-top:0; margin-bottom:10px;">Beheer Admins:</h4>';
-        
         appData.deelnemers.forEach(u => {
             const isZelf = u.id === huidigeGebruikerId;
-            lijst.innerHTML += `
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:0.9em; border-bottom: 1px solid #eaeaea; padding-bottom: 5px;">
-                    <span>${u.naam} ${isZelf ? '(jij)' : ''}</span>
-                    <input type="checkbox" style="width:18px; height: 18px; margin:0;" ${u.is_admin ? 'checked' : ''} ${isZelf ? 'disabled' : ''} onchange="toggleAdminRol(${u.id}, this.checked)">
-                </div>
-            `;
+            lijst.innerHTML += `<div style="display:flex; justify-content:space-between; margin-bottom:8px; border-bottom: 1px solid #eaeaea; padding-bottom: 5px;"><span>${u.naam}</span><input type="checkbox" style="width:18px; height:18px;" ${u.is_admin?'checked':''} ${isZelf?'disabled':''} onchange="toggleAdminRol(${u.id}, this.checked)"></div>`;
         });
     }
 
     async function maakEersteGebruiker() {
-        const input = document.getElementById('eerste-user-naam');
-        const n = input.value.trim();
-        if(n) { await db.from('deelnemers').insert([{naam: n, is_admin: true}]); input.value = ''; await laadData(); }
+        const n = document.getElementById('eerste-user-naam').value.trim();
+        if(n) { await db.from('deelnemers').insert([{naam: n, is_admin: true}]); await laadData(); }
     }
 
-    async function claimAdminRechten() {
-        if(huidigeGebruikerId) { await db.from('deelnemers').update({ is_admin: true }).eq('id', huidigeGebruikerId); await laadData(); }
-    }
-
-    async function toggleAdminRol(userId, wordAdmin) {
-        await db.from('deelnemers').update({ is_admin: wordAdmin }).eq('id', userId); await laadData();
-    }
-
+    async function claimAdminRechten() { if(huidigeGebruikerId) { await db.from('deelnemers').update({ is_admin: true }).eq('id', huidigeGebruikerId); await laadData(); } }
+    async function toggleAdminRol(id, w) { await db.from('deelnemers').update({ is_admin: w }).eq('id', id); await laadData(); }
+    
     async function maakDefinitief() {
-        const isMenuDefinitief = appData.planning.some(p => p.is_definitief === true);
-        const datums = [];
-        for(let i=0; i<7; i++) {
-            const d = new Date(); d.setDate(d.getDate() + i);
-            datums.push(d.toISOString().split('T')[0]);
-        }
-        await db.from('weekplanning').update({ is_definitief: !isMenuDefinitief }).in('datum', datums);
+        const isDef = appData.planning.some(p => p.is_definitief === true);
+        const datums = Array.from({length:7}, (_,i) => { const d = new Date(); d.setDate(d.getDate()+i); return d.toISOString().split('T')[0]; });
+        await db.from('weekplanning').update({ is_definitief: !isDef }).in('datum', datums);
         await laadData();
     }
 
@@ -379,37 +371,22 @@ function tekenPlanner() {
         await laadData();
     }
 
-    function tekenGerechten() {
-        const list = document.getElementById('meal-list');
-        list.innerHTML = '<h2 style="margin-top:0; font-size:1.2em">Gerechten Database</h2>';
-        const gesorteerd = [...appData.maaltijden].sort((a, b) => getGemiddelde(b.id) - getGemiddelde(a.id));
-        gesorteerd.forEach(m => {
-            const gem = getGemiddelde(m.id);
-            list.innerHTML += `<div style="padding:10px 0; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center">
-                <strong>${m.naam}</strong><div class="stars-outer"><div class="stars-inner" style="width:${gem*20}%"></div></div>
-            </div>`;
-        });
-    }
-
     async function voegPersoonToe() {
-        const input = document.getElementById('new-person-name');
-        if(input.value.trim()) { await db.from('deelnemers').insert([{naam: input.value.trim(), is_admin: false}]); input.value = ''; await laadData(); toggleMenu(); }
+        const n = document.getElementById('new-person-name').value.trim();
+        if(n) { await db.from('deelnemers').insert([{naam: n, is_admin: false}]); document.getElementById('new-person-name').value = ''; await laadData(); toggleMenu(); }
     }
 
     async function voegMaaltijdToe() {
-        const input = document.getElementById('new-meal-name');
-        if(input.value.trim()) { await db.from('maaltijden').insert([{naam: input.value.trim()}]); input.value = ''; await laadData(); toggleMenu(); }
+        const n = document.getElementById('new-meal-name').value.trim();
+        if(n) { await db.from('maaltijden').insert([{naam: n}]); document.getElementById('new-meal-name').value = ''; await laadData(); toggleMenu(); }
     }
 
-    // PWA Service Worker Registratie
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-            navigator.serviceWorker.register('./sw.js')
-                .then(reg => console.log('PWA Service Worker is succesvol geregistreerd!'))
-                .catch(err => console.error('PWA Service Worker fout:', err));
+            navigator.serviceWorker.register('./sw.js').catch(err => console.error('SW error:', err));
         });
     }
-    
+
     laadData();
 </script>
 </body>
