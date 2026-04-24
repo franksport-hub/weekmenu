@@ -24,6 +24,12 @@
         .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); display: none; z-index: 150; backdrop-filter: blur(2px); }
         .overlay.open { display: block; }
 
+        /* Modal / Popup styles */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 300; display: none; align-items: center; justify-content: center; backdrop-filter: blur(3px); }
+        .modal-overlay.open { display: flex; }
+        .modal-card { background: white; border-radius: 16px; padding: 25px; max-width: 90%; width: 380px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); position: relative; animation: popIn 0.3s ease-out; }
+        @keyframes popIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
         /* Form elements */
         select, input[type="text"] { padding: 12px; font-size: 16px; border-radius: 8px; border: 1px solid #ddd; width: 100%; box-sizing: border-box; margin-bottom: 12px; transition: border 0.2s; }
         select:focus, input[type="text"]:focus { border-color: var(--primary); outline: none; }
@@ -33,6 +39,7 @@
         /* Planner list */
         .planner-day { padding: 15px 0; border-bottom: 1px solid #f0f0f0; }
         .planner-day:last-child { border-bottom: none; }
+        .planner-day.is-today { background: #f0f8ff; margin: 0 -20px; padding: 15px 20px; border-radius: 8px; border-bottom: none; border: 1px solid #cce5ff;}
         .planner-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
         .planner-date { font-weight: bold; width: 85px; font-size: 0.9em; color: #666; flex-shrink: 0;}
         .planner-select { flex-grow: 1; margin: 0; font-size: 0.95em; min-width: 0; }
@@ -68,6 +75,14 @@
 
 <div id="ui-error" class="error-box"></div>
 
+<div class="modal-overlay" id="infoModal">
+    <div class="modal-card">
+        <h2 id="infoTitel" style="margin-top:0; color: var(--primary);"></h2>
+        <div id="infoContent" style="font-size: 0.95em; line-height: 1.5; margin-bottom: 25px; color: #555;"></div>
+        <button class="btn" onclick="sluitInfoModal()">Begrepen, let's go! 👍</button>
+    </div>
+</div>
+
 <div class="overlay" id="overlay" onclick="toggleMenu()"></div>
 <div class="side-menu" id="sideMenu">
     <button onclick="toggleMenu()" style="float:right; border:none; background:none; font-size:1.5em">✕</button>
@@ -100,16 +115,20 @@
     </div>
 
     <div class="card">
-        <h2 style="margin-top:0; font-size: 1.2em; border-bottom: 2px solid var(--primary); padding-bottom: 5px; display: inline-block;">📅 Planning</h2>
+        <h2 style="margin-top:0; font-size: 1.2em; border-bottom: 2px solid var(--primary); padding-bottom: 5px; display: inline-block;">📅 Weekplanning</h2>
         <div id="planner-list" class="loading-shimmer">Gegevens ophalen uit de cloud...</div>
     </div>
 
     <div id="meal-list" class="card">
-        <h2 style="margin-top:0; font-size: 1.2em">Gerechten</h2>
+        <h2 style="margin-top:0; font-size: 1.2em">Gerechten Database</h2>
     </div>
 </div>
 
 <script>
+    // --- VERSIE BEHEER (Verander dit getal bij een nieuwe update!) ---
+    const HUIDIGE_VERSIE = "1.1";
+    // -----------------------------------------------------------------
+
     window.onerror = function(msg, url, line) {
         document.getElementById('ui-error').style.display = 'block';
         document.getElementById('ui-error').innerText = "Vastgelopen op regel " + line + ": " + msg;
@@ -131,6 +150,47 @@
         document.getElementById('overlay').classList.toggle('open');
     }
 
+    // --- DE NIEUWE POPUP LOGICA ---
+    function checkAppVersie() {
+        const opgeslagenVersie = localStorage.getItem('weekmenu_versie');
+        const modal = document.getElementById('infoModal');
+        const titel = document.getElementById('infoTitel');
+        const content = document.getElementById('infoContent');
+
+        if (!opgeslagenVersie) {
+            // Eerste keer dat de gebruiker de app opent
+            titel.innerHTML = "👋 Welkom bij Weekmenu Pro!";
+            content.innerHTML = `
+                <p>Leuk dat je de app gebruikt! Zo werkt het:</p>
+                <ul style="padding-left: 20px;">
+                    <li style="margin-bottom:8px"><b>Kies je naam:</b> Selecteer bovenaan eerst wie je bent, zo weet de app wie er stemt.</li>
+                    <li style="margin-bottom:8px"><b>Stemmen:</b> Beoordeel het menu met sterren, of gebruik de Veto knop (🛑) als je het écht niet wilt eten!</li>
+                    <li style="margin-bottom:8px"><b>Beheerders:</b> Alleen zij kunnen het menu inplannen en de week definitief maken.</li>
+                </ul>
+                <p><i>💡 Tip: Installeer mij als app via de opties van je browser ("Zet op beginscherm").</i></p>`;
+            modal.classList.add('open');
+        } else if (opgeslagenVersie !== HUIDIGE_VERSIE) {
+            // Bestaande gebruiker, maar er is een nieuwe versie
+            titel.innerHTML = "🚀 Nieuw in deze update!";
+            content.innerHTML = `
+                <p>De app is bijgewerkt! Wat is er nieuw?</p>
+                <ul style="padding-left: 20px;">
+                    <li style="margin-bottom:8px"><b>Vaste Week:</b> De planning is nu netjes vastgezet van maandag t/m zondag. Vandaag is blauw uitgelicht!</li>
+                    <li style="margin-bottom:8px"><b>Sterren-weergave:</b> Zie direct visueel de gemiddelde score náást het gerecht in de planner.</li>
+                    <li style="margin-bottom:8px"><b>Veto's:</b> Bij een Veto zie je nu precies de namen in beeld van de personen die weigeren mee te eten. 🛑</li>
+                </ul>`;
+            modal.classList.add('open');
+        }
+        
+        // Update het geheugen naar de huidige versie
+        localStorage.setItem('weekmenu_versie', HUIDIGE_VERSIE);
+    }
+
+    function sluitInfoModal() {
+        document.getElementById('infoModal').classList.remove('open');
+    }
+    // --------------------------------
+
     async function laadData() {
         try {
             const [d, m, b, p] = await Promise.all([
@@ -147,6 +207,7 @@
             
             vulUserSelect();
             tekenAlles();
+            checkAppVersie(); // Roep de popup check aan nadat alles is geladen
         } catch (e) { 
             document.getElementById('ui-error').style.display = 'block';
             document.getElementById('ui-error').innerHTML = "<b>Database fout:</b> " + e.message;
@@ -179,27 +240,43 @@
     function tekenStatus() {
         const container = document.getElementById('status-list');
         container.innerHTML = '';
-        const geplandeMaaltijdIds = appData.planning.map(p => p.maaltijd_id).filter(id => id != null);
+        
+        // We kijken nu alleen naar de planning van DEZE week (Ma-Zo) om de vinkjes te bepalen
+        const startMaandag = getStartMaandag();
+        const datumsDezeWeek = Array.from({length:7}, (_,i) => { const d = new Date(startMaandag); d.setDate(d.getDate()+i); return d.toISOString().split('T')[0]; });
+        
+        // Haal alleen de IDs op van de gerechten die deze week gepland staan
+        const geplandeMaaltijdIdsDezeWeek = appData.planning
+            .filter(p => datumsDezeWeek.includes(p.datum))
+            .map(p => p.maaltijd_id)
+            .filter(id => id != null);
         
         appData.deelnemers.forEach(u => {
-            // Veto's (-1) tellen ook als 'gestemd' voor het afvinken van de week
-            const mijnRatings = appData.beoordelingen.filter(b => b.deelnemer_id === u.id && geplandeMaaltijdIds.includes(b.maaltijd_id));
-            const isKlaar = geplandeMaaltijdIds.length > 0 && mijnRatings.length >= geplandeMaaltijdIds.length;
+            const mijnRatings = appData.beoordelingen.filter(b => b.deelnemer_id === u.id && geplandeMaaltijdIdsDezeWeek.includes(b.maaltijd_id));
+            const isKlaar = geplandeMaaltijdIdsDezeWeek.length > 0 && mijnRatings.length >= geplandeMaaltijdIdsDezeWeek.length;
             const adminBadge = u.is_admin ? '<span class="admin-badge">Admin</span>' : '';
             container.innerHTML += `<div class="user-chip ${isKlaar ? 'ready' : ''}">${isKlaar ? '✅' : '⏳'} ${u.naam} ${adminBadge}</div>`;
         });
     }
 
-    // AANGEPAST: Negeer veto's (-1) bij het berekenen van het wiskundig gemiddelde
     function getGemiddelde(mid) {
         const rb = appData.beoordelingen.filter(x => x.maaltijd_id === mid && x.sterren > 0);
         return rb.length ? (rb.reduce((a,b)=>a+b.sterren, 0)/rb.length).toFixed(1) : "0.0";
     }
 
-    // NIEUW: Haal de namen op van mensen die een Veto hebben gegeven
     function getVetoes(mid) {
         const vetoBeoordelingen = appData.beoordelingen.filter(x => x.maaltijd_id === mid && x.sterren === -1);
         return vetoBeoordelingen.map(v => appData.deelnemers.find(d => d.id === v.deelnemer_id)?.naam).filter(Boolean);
+    }
+
+    // --- HULPFUNCTIE: Bepaal de datum van de actuele Maandag ---
+    function getStartMaandag() {
+        const vandaag = new Date();
+        const dagVanDeWeek = vandaag.getDay(); // 0 is Zondag, 1 is Maandag etc.
+        const verschilMetMaandag = dagVanDeWeek === 0 ? -6 : 1 - dagVanDeWeek;
+        const startMaandag = new Date(vandaag);
+        startMaandag.setDate(vandaag.getDate() + verschilMetMaandag);
+        return startMaandag;
     }
 
     function tekenPlanner() {
@@ -215,21 +292,27 @@
             </div>`;
         }
 
-        const dagen = ['Zo', 'Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za'];
+        const startMaandag = getStartMaandag();
+        const vandaag = new Date();
+        const dagenNamen = ['Zo', 'Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za'];
         
         for(let i=0; i<7; i++) {
-            const d = new Date(); d.setDate(d.getDate() + i);
+            const d = new Date(startMaandag);
+            d.setDate(startMaandag.getDate() + i);
             const iso = d.toISOString().split('T')[0];
+            
             const gepland = appData.planning.find(x => x.datum === iso);
             const mid = gepland?.maaltijd_id;
             const magAanpassen = !isMenuDefinitief || isAdmin;
 
-            // Het keuzemenu (Zonder de gemiddelde tekst er in, want we tonen het visueel)
             let opts = '<option value="">-- Kies gerecht --</option>' + 
                 appData.maaltijden.map(m => `<option value="${m.id}" ${mid==m.id?'selected':''}>${m.naam}</option>`).join('');
 
             const mijnRating = (mid && huidigeGebruikerId) ? appData.beoordelingen.find(x => x.maaltijd_id === mid && x.deelnemer_id === huidigeGebruikerId)?.sterren : null;
-            const dagNaam = i === 0 ? "Vandaag" : dagen[d.getDay()] + " " + d.getDate();
+            
+            // Check of deze loop-datum exact overeenkomt met de datum van vandaag
+            const isVandaag = d.toDateString() === vandaag.toDateString();
+            const dagNaam = isVandaag ? "Vandaag" : dagenNamen[d.getDay()] + " " + d.getDate();
 
             let avgStarsHtml = '';
             let vetoHtml = '';
@@ -238,12 +321,10 @@
                 const gem = getGemiddelde(mid);
                 const vetos = getVetoes(mid);
 
-                // Check voor veto's en bouw de rode tekst
                 if (vetos.length > 0) {
                     vetoHtml = `<div style="color: var(--danger); font-size: 0.8em; font-weight: bold; margin-bottom: 5px; text-align: right;">🛑 Veto door: ${vetos.join(', ')}</div>`;
                 }
 
-                // De visuele vul-sterren naast de dropdown
                 avgStarsHtml = `
                 <div title="Gemiddelde: ${gem} sterren" style="width: 75px; text-align: center; flex-shrink: 0;">
                     <div class="stars-outer" style="font-size: 1.1em;">
@@ -252,7 +333,6 @@
                 </div>`;
             }
 
-            // De knoppen om zelf te stemmen
             let ratingHtml = '';
             if (mid && huidigeGebruikerId) {
                 ratingHtml = `
@@ -269,7 +349,7 @@
             }
 
             list.innerHTML += `
-            <div class="planner-day">
+            <div class="planner-day ${isVandaag ? 'is-today' : ''}">
                 <div class="planner-row">
                     <div class="planner-date">${dagNaam}</div>
                     <select class="planner-select" ${!magAanpassen ? 'disabled' : ''} onchange="plan('${iso}', this.value)">${opts}</select>
@@ -354,7 +434,8 @@
     
     async function maakDefinitief() {
         const isDef = appData.planning.some(p => p.is_definitief === true);
-        const datums = Array.from({length:7}, (_,i) => { const d = new Date(); d.setDate(d.getDate()+i); return d.toISOString().split('T')[0]; });
+        const startMaandag = getStartMaandag();
+        const datums = Array.from({length:7}, (_,i) => { const d = new Date(startMaandag); d.setDate(d.getDate()+i); return d.toISOString().split('T')[0]; });
         await db.from('weekplanning').update({ is_definitief: !isDef }).in('datum', datums);
         await laadData();
     }
@@ -373,21 +454,4 @@
 
     async function voegPersoonToe() {
         const n = document.getElementById('new-person-name').value.trim();
-        if(n) { await db.from('deelnemers').insert([{naam: n, is_admin: false}]); document.getElementById('new-person-name').value = ''; await laadData(); toggleMenu(); }
-    }
-
-    async function voegMaaltijdToe() {
-        const n = document.getElementById('new-meal-name').value.trim();
-        if(n) { await db.from('maaltijden').insert([{naam: n}]); document.getElementById('new-meal-name').value = ''; await laadData(); toggleMenu(); }
-    }
-
-    if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-            navigator.serviceWorker.register('./sw.js').catch(err => console.error('SW error:', err));
-        });
-    }
-
-    laadData();
-</script>
-</body>
-</html>
+        if(n) { await db.from('deelnemers').insert([{naam: n, is_admin: false}]); document.getElementById('new-person-name').value = ''; await laad
