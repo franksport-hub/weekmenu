@@ -208,7 +208,7 @@
         return rb.length ? (rb.reduce((a,b)=>a+b.sterren, 0)/rb.length).toFixed(1) : "0.0";
     }
 
-    function tekenPlanner() {
+function tekenPlanner() {
         const list = document.getElementById('planner-list');
         list.innerHTML = '';
         
@@ -231,12 +231,26 @@
             
             const magAanpassen = !isMenuDefinitief || isAdmin;
 
+            // Het keuzemenu met de opties
             let opts = '<option value="">-- Kies gerecht --</option>' + 
-                appData.maaltijden.map(m => `<option value="${m.id}" ${mid==m.id?'selected':''}>${m.naam} (${getGemiddelde(m.id)} ⭐)</option>`).join('');
+                appData.maaltijden.map(m => `<option value="${m.id}" ${mid==m.id?'selected':''}>${m.naam}</option>`).join('');
 
             const mijnRating = (mid && huidigeGebruikerId) ? appData.beoordelingen.find(x => x.maaltijd_id === mid && x.deelnemer_id === huidigeGebruikerId)?.sterren : 0;
             const dagNaam = i === 0 ? "Vandaag" : dagen[d.getDay()] + " " + d.getDate();
 
+            // NIEUW: Visuele weergave van de gemiddelde sterren rechts naast de dropdown
+            let avgStarsHtml = '';
+            if (mid) {
+                const gem = getGemiddelde(mid);
+                avgStarsHtml = `
+                <div title="Gemiddelde: ${gem} sterren" style="min-width: 80px; text-align: right;">
+                    <div class="stars-outer" style="font-size: 0.9em;">
+                        <div class="stars-inner" style="width:${gem*20}%"></div>
+                    </div>
+                </div>`;
+            }
+
+            // Jouw eigen stemknoppen
             let ratingHtml = '';
             if (mid && huidigeGebruikerId) {
                 ratingHtml = `
@@ -253,7 +267,7 @@
                 <div class="planner-row">
                     <div class="planner-date">${dagNaam}</div>
                     <select class="planner-select" ${!magAanpassen ? 'disabled' : ''} onchange="plan('${iso}', this.value)">${opts}</select>
-                </div>
+                    ${avgStarsHtml} </div>
                 ${ratingHtml}
             </div>`;
         }
