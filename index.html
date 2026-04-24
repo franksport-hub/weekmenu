@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Weekmenu Pro</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#007bff">
+    <link rel="icon" href="favicon.ico">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root { --primary: #007bff; --bg: #f4f4f9; --text: #333; --success: #28a745; --star: #ffc107; }
@@ -383,6 +387,15 @@
         if(input.value.trim()) { await db.from('maaltijden').insert([{naam: input.value.trim()}]); input.value = ''; await laadData(); toggleMenu(); }
     }
 
+    // PWA Service Worker Registratie
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js')
+                .then(reg => console.log('PWA Service Worker is succesvol geregistreerd!'))
+                .catch(err => console.error('PWA Service Worker fout:', err));
+        });
+    }
+    
     laadData();
 </script>
 </body>
