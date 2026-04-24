@@ -3,58 +3,87 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Weekmenu</title>
+    <title>Weekmenu Pro</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        :root { --primary: #007bff; --bg: #f4f4f9; --text: #333; --success: #28a745; }
-        body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 0; }
+        :root { --primary: #007bff; --bg: #f4f4f9; --text: #333; --success: #28a745; --star: #ffc107; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 0; }
         header { background: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 100; }
-        .app-container { max-width: 600px; margin: 20px auto; padding: 0 15px; }
-        .card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; }
-        .side-menu { position: fixed; top: 0; right: -300px; width: 280px; height: 100%; background: white; transition: 0.3s; z-index: 200; padding: 20px; box-sizing: border-box; }
+        
+        .app-container { max-width: 600px; margin: 20px auto; padding: 0 15px; padding-bottom: 50px; }
+        .card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 20px; }
+        
+        /* Menu styles */
+        .side-menu { position: fixed; top: 0; right: -310px; width: 300px; height: 100%; background: white; transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1); z-index: 200; padding: 25px; box-sizing: border-box; box-shadow: -5px 0 15px rgba(0,0,0,0.1); overflow-y: auto; }
         .side-menu.open { right: 0; }
-        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); display: none; z-index: 150; }
+        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); display: none; z-index: 150; backdrop-filter: blur(2px); }
         .overlay.open { display: block; }
-        select, input { padding: 12px; font-size: 1em; border-radius: 8px; border: 1px solid #ddd; width: 100%; box-sizing: border-box; margin-bottom: 10px; }
-        .btn { background: var(--primary); color: white; border: none; padding: 12px; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; }
+
+        /* Form elements */
+        select, input[type="text"] { padding: 12px; font-size: 16px; border-radius: 8px; border: 1px solid #ddd; width: 100%; box-sizing: border-box; margin-bottom: 12px; transition: border 0.2s; }
+        select:focus, input[type="text"]:focus { border-color: var(--primary); outline: none; }
+        select:disabled { background-color: #f0f0f0; cursor: not-allowed; color: #888; }
+        .btn { background: var(--primary); color: white; border: none; padding: 12px; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; font-size: 14px; }
         
-        .planner-day { padding: 15px 0; border-bottom: 1px solid #eee; }
+        /* Planner list */
+        .planner-day { padding: 15px 0; border-bottom: 1px solid #f0f0f0; }
+        .planner-day:last-child { border-bottom: none; }
         .planner-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-        .planner-date { font-weight: bold; width: 90px; font-size: 0.9em; }
-        .planner-select { flex-grow: 1; margin: 0; }
-        
-        .inline-rating { display: flex; gap: 2px; margin-top: 8px; justify-content: flex-end; }
-        .mini-rate { background: none; border: 1px solid #eee; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 0.8em; color: #ccc; }
-        .mini-rate.selected { color: #ffc107; border-color: #ffc107; background: #fffde7; }
+        .planner-date { font-weight: bold; width: 100px; font-size: 0.9em; color: #666; }
+        .planner-select { flex-grow: 1; margin: 0; font-size: 0.95em; }
 
-        .status-list { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
-        .user-chip { padding: 5px 12px; border-radius: 20px; background: #eee; font-size: 0.85em; display: flex; align-items: center; gap: 5px; }
+        /* Rating system */
+        .inline-rating { display: flex; gap: 4px; margin-top: 10px; justify-content: flex-end; align-items: center; }
+        .mini-rate { background: white; border: 1px solid #ddd; border-radius: 6px; padding: 5px 10px; cursor: pointer; font-size: 0.85em; transition: 0.2s; }
+        .mini-rate.selected { background: var(--star); color: white; border-color: var(--star); transform: scale(1.05); }
+
+        /* Status & Chips */
+        .status-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+        .user-chip { padding: 6px 12px; border-radius: 20px; background: #eee; font-size: 0.8em; font-weight: 500; }
         .user-chip.ready { background: var(--success); color: white; }
+        .admin-badge { background: #ffc107; color: #333; font-size: 0.7em; padding: 2px 6px; border-radius: 10px; margin-left: 5px; }
 
-        .stars-outer { display: inline-block; position: relative; color: #e0e0e0; font-size: 1em; }
+        /* Stars */
+        .stars-outer { display: inline-block; position: relative; color: #ddd; font-size: 1.1em; }
         .stars-outer::before { content: "★★★★★"; }
-        .stars-inner { position: absolute; top: 0; left: 0; white-space: nowrap; overflow: hidden; color: #ffc107; }
+        .stars-inner { position: absolute; top: 0; left: 0; white-space: nowrap; overflow: hidden; color: var(--star); }
         .stars-inner::before { content: "★★★★★"; }
+        
+        .loading-shimmer { color: #aaa; text-align: center; padding: 20px; font-style: italic; }
     </style>
 </head>
 <body>
 
 <header>
-    <h1 onclick="location.reload()" style="cursor:pointer">Weekmenu 🍽️</h1>
-    <button onclick="toggleMenu()" style="font-size:1.8em; background:none; border:none; cursor:pointer">☰</button>
+    <h1 onclick="location.reload()" style="cursor:pointer; font-size: 1.4em; margin:0">Weekmenu 🍽️</h1>
+    <button onclick="toggleMenu()" style="font-size:1.5em; background:none; border:none; cursor:pointer">⚙️</button>
 </header>
 
 <div class="overlay" id="overlay" onclick="toggleMenu()"></div>
 <div class="side-menu" id="sideMenu">
     <button onclick="toggleMenu()" style="float:right; border:none; background:none; font-size:1.5em">✕</button>
-    <h2 style="margin-top:40px">Beheer</h2>
-    <p>Nieuw gezinslid:</p>
-    <input type="text" id="new-person-name" placeholder="Naam">
-    <button class="btn" onclick="voegPersoonToe()">Toevoegen</button>
-    <hr>
-    <p>Nieuw gerecht:</p>
-    <input type="text" id="new-meal-name" placeholder="Naam gerecht">
-    <button class="btn" onclick="voegMaaltijdToe()">Opslaan</button>
+    <h2 style="margin-top:40px">Instellingen</h2>
+    
+    <div id="admin-only-tools" style="display:none; border-top: 2px solid #eee; padding-top:10px">
+        <p style="color: var(--primary); font-weight:bold; margin-bottom: 5px;">🛡️ Beheerders paneel</p>
+        
+        <div id="admin-user-list" style="margin: 15px 0; padding: 10px; background: #f9f9f9; border-radius: 8px;">
+            </div>
+
+        <p><b>Gezinslid toevoegen:</b></p>
+        <input type="text" id="new-person-name" placeholder="Naam">
+        <button class="btn" onclick="voegPersoonToe()">Gezinslid Toevoegen</button>
+        
+        <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
+        
+        <p><b>Nieuw gerecht:</b></p>
+        <input type="text" id="new-meal-name" placeholder="Naam gerecht">
+        <button class="btn" onclick="voegMaaltijdToe()">Gerecht Opslaan</button>
+    </div>
+
+    <div id="user-tools" style="margin-top:20px">
+        <p style="font-size:0.85em; color:#888; font-style: italic;" id="no-admin-msg">Alleen beheerders kunnen instellingen wijzigen of nieuwe gerechten toevoegen.</p>
+    </div>
 </div>
 
 <div class="app-container">
@@ -65,11 +94,13 @@
     </div>
 
     <div class="card">
-        <h2 style="margin-top:0; font-size: 1.2em">📅 Planning & Stemmen</h2>
-        <div id="planner-list">Laden...</div>
+        <h2 style="margin-top:0; font-size: 1.2em; border-bottom: 2px solid var(--primary); padding-bottom: 5px; display: inline-block;">📅 Planning</h2>
+        <div id="planner-list" class="loading-shimmer">Gegevens ophalen uit de cloud...</div>
     </div>
 
-    <div id="meal-list" class="card">Gerechten laden...</div>
+    <div id="meal-list" class="card">
+        <h2 style="margin-top:0; font-size: 1.2em">Gerechten</h2>
+    </div>
 </div>
 
 <script>
@@ -78,7 +109,7 @@
     const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     let appData = { deelnemers: [], maaltijden: [], beoordelingen: [], planning: [] };
-    let huidigeGebruikerId = null;
+    let huidigeGebruikerId = localStorage.getItem('weekmenu_userid') ? parseInt(localStorage.getItem('weekmenu_userid')) : null;
 
     function toggleMenu() {
         document.getElementById('sideMenu').classList.toggle('open');
@@ -88,113 +119,4 @@
     async function laadData() {
         try {
             const [d, m, b, p] = await Promise.all([
-                db.from('deelnemers').select('*').order('id'),
-                db.from('maaltijden').select('*').order('naam'),
-                db.from('beoordelingen').select('*'),
-                db.from('weekplanning').select('*')
-            ]);
-            appData = { deelnemers: d.data||[], maaltijden: m.data||[], beoordelingen: b.data||[], planning: p.data||[] };
-            
-            vulUserSelect();
-            tekenStatus();
-            tekenPlanner();
-            tekenGerechten();
-        } catch (e) { console.error(e); }
-    }
-
-    function vulUserSelect() {
-        const s = document.getElementById('user-select');
-        s.innerHTML = '<option value="">-- Kies je naam --</option>' + 
-            appData.deelnemers.map(u => `<option value="${u.id}" ${u.id === huidigeGebruikerId ? 'selected' : ''}>${u.naam}</option>`).join('');
-    }
-
-    function veranderGebruiker() {
-        huidigeGebruikerId = parseInt(document.getElementById('user-select').value) || null;
-        tekenStatus();
-        tekenPlanner();
-        tekenGerechten();
-    }
-
-    function tekenStatus() {
-        const container = document.getElementById('status-list');
-        container.innerHTML = '';
-        appData.deelnemers.forEach(u => {
-            const geplandDezeWeek = appData.planning.map(p => p.maaltijd_id);
-            const mijnRatings = appData.beoordelingen.filter(b => b.deelnemer_id === u.id && geplandDezeWeek.includes(b.maaltijd_id));
-            const isKlaar = mijnRatings.length >= appData.planning.length && appData.planning.length > 0;
-            
-            container.innerHTML += `<div class="user-chip ${isKlaar ? 'ready' : ''}">${isKlaar ? '✅' : '⏳'} ${u.naam}</div>`;
-        });
-    }
-
-    function getGemiddelde(mid) {
-        const rb = appData.beoordelingen.filter(x => x.maaltijd_id === mid);
-        return rb.length ? (rb.reduce((a,b)=>a+b.sterren, 0)/rb.length).toFixed(1) : "0.0";
-    }
-
-    function tekenPlanner() {
-        const list = document.getElementById('planner-list');
-        list.innerHTML = '';
-        const dagen = ['Zo', 'Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za'];
-        for(let i=0; i<7; i++) {
-            const d = new Date(); d.setDate(d.getDate() + i);
-            const iso = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-            const gepland = appData.planning.find(x => x.datum === iso);
-            const mid = gepland?.maaltijd_id;
-            
-            let opts = '<option value="">-- Wat eten we? --</option>' + 
-                appData.maaltijden.map(m => `<option value="${m.id}" ${mid==m.id?'selected':''}>${m.naam} (${getGemiddelde(m.id)} ⭐)</option>`).join('');
-
-            const mijnRating = mid && huidigeGebruikerId ? appData.beoordelingen.find(x => x.maaltijd_id === mid && x.deelnemer_id === huidigeGebruikerId)?.sterren : 0;
-
-            list.innerHTML += `<div class="planner-day">
-                <div class="planner-row">
-                    <div class="planner-date">${i==0?'Vandaag':dagen[d.getDay()]+' '+d.getDate()}</div>
-                    <select class="planner-select" onchange="plan('${iso}', this.value)">${opts}</select>
-                </div>
-                ${mid && huidigeGebruikerId ? `<div class="inline-rating">
-                    <span style="font-size:0.75em; margin-right:5px; align-self:center">Jouw score:</span>
-                    ${[1,2,3,4,5].map(n => `<button class="mini-rate ${mijnRating==n?'selected':''}" onclick="rate(${mid},${n})">${n}★</button>`).join('')}
-                </div>` : ''}
-            </div>`;
-        }
-    }
-
-    async function plan(datum, mid) {
-        if(!mid) await db.from('weekplanning').delete().eq('datum', datum);
-        else await db.from('weekplanning').upsert({ datum, maaltijd_id: parseInt(mid), dag: 'n.v.t.' }, { onConflict: 'datum' });
-        await laadData();
-    }
-
-    async function rate(mid, s) {
-        if(!huidigeGebruikerId) return;
-        await db.from('beoordelingen').upsert({ maaltijd_id: mid, deelnemer_id: huidigeGebruikerId, sterren: s }, { onConflict: 'maaltijd_id,deelnemer_id' });
-        await laadData();
-    }
-
-    function tekenGerechten() {
-        const list = document.getElementById('meal-list');
-        list.innerHTML = '<h2 style="margin-top:0; font-size:1.2em">Gerechten Database</h2>';
-        appData.maaltijden.forEach(m => {
-            const gem = getGemiddelde(m.id);
-            list.innerHTML += `<div style="padding:10px 0; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center">
-                <strong>${m.naam}</strong>
-                <span><div class="stars-outer"><div class="stars-inner" style="width:${gem*20}%"></div></div></span>
-            </div>`;
-        });
-    }
-
-    async function voegPersoonToe() {
-        const n = document.getElementById('new-person-name').value;
-        if(n) { await db.from('deelnemers').insert([{naam:n}]); await laadData(); toggleMenu(); }
-    }
-
-    async function voegMaaltijdToe() {
-        const n = document.getElementById('new-meal-name').value;
-        if(n) { await db.from('maaltijden').insert([{naam:n}]); await laadData(); toggleMenu(); }
-    }
-
-    laadData();
-</script>
-</body>
-</html>
+                db.from
