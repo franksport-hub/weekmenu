@@ -1,4 +1,4 @@
-const CACHE_NAME = 'weekmenu-cache-v5'; // Verhoogd naar v4
+const CACHE_NAME = 'weekmenu-cache-v6'; // Verhoogd naar v6
 const ASSETS_TO_CACHE = [
     './',
     './manifest.json',
