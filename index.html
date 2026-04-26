@@ -11,7 +11,7 @@
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        :root { --primary: #007bff; --bg: #f4f4f9; --text: #333; --success: #28a745; --star: #ffc107; --danger: #dc3545; }
+        :root { --primary: #007bff; --bg: #f4f4f9; --text: #333; --success: #28a745; --star: #ffc107; --danger: #dc3545; --muted: #6c757d;}
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 0; }
         header { background: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 100; }
         
@@ -49,6 +49,7 @@
         .mini-rate { background: white; border: 1px solid #ddd; border-radius: 6px; padding: 5px 10px; cursor: pointer; font-size: 0.85em; transition: 0.2s; }
         .mini-rate.selected { background: var(--star); color: white; border-color: var(--star); transform: scale(1.05); }
         .mini-rate.veto-btn.selected { background: var(--danger); color: white; border-color: var(--danger); }
+        .mini-rate.afwezig-btn.selected { background: var(--muted); color: white; border-color: var(--muted); }
 
         /* Status & Chips */
         .status-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
@@ -115,7 +116,15 @@
     </div>
 
     <div class="card">
-        <h2 style="margin-top:0; font-size: 1.2em; border-bottom: 2px solid var(--primary); padding-bottom: 5px; display: inline-block;">📅 Weekplanning</h2>
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid var(--primary); padding-bottom: 10px; margin-bottom: 15px;">
+            <button class="btn" style="width:40px; padding:8px; font-size:1.2em;" onclick="veranderWeek(-1)">◀</button>
+            <div style="text-align: center;">
+                <h2 style="margin:0; font-size: 1.1em;">📅 Planning</h2>
+                <div id="week-titel" style="font-size:0.85em; color:#666; font-weight:bold;"></div>
+            </div>
+            <button class="btn" style="width:40px; padding:8px; font-size:1.2em;" onclick="veranderWeek(1)">▶</button>
+        </div>
+
         <div id="planner-list" class="loading-shimmer">Gegevens ophalen uit de cloud...</div>
     </div>
 
@@ -125,7 +134,8 @@
 </div>
 
 <script>
-    const HUIDIGE_VERSIE = "1.2"; // Verhoogd zodat de popup geforceerd wordt
+    // --- VERSIE BEHEER (Forceert de popup bij een update) ---
+    const HUIDIGE_VERSIE = "1.4";
 
     window.onerror = function(msg, url, line) {
         document.getElementById('ui-error').style.display = 'block';
@@ -138,6 +148,7 @@
 
     let appData = { deelnemers: [], maaltijden: [], beoordelingen: [], planning: [] };
     let huidigeGebruikerId = null;
+    let actieveWeekOffset = 0; // 0 = Deze week, 1 = Volgende week, -1 = Vorige week
     
     try {
         const opgeslagen = localStorage.getItem('weekmenu_userid');
@@ -162,18 +173,19 @@
                 <ul style="padding-left: 20px;">
                     <li style="margin-bottom:8px"><b>Kies je naam:</b> Selecteer bovenaan eerst wie je bent, zo weet de app wie er stemt.</li>
                     <li style="margin-bottom:8px"><b>Stemmen:</b> Beoordeel het menu met sterren, of gebruik de Veto knop (🛑) als je het écht niet wilt eten!</li>
+                    <li style="margin-bottom:8px"><b>Afwezig:</b> Eet je een dagje niet mee? Klik op 🏃 Afwezig, dan tellen we je niet mee.</li>
                     <li style="margin-bottom:8px"><b>Beheerders:</b> Alleen zij kunnen het menu inplannen en de week definitief maken.</li>
                 </ul>
                 <p><i>💡 Tip: Installeer mij als app via de opties van je browser ("Zet op beginscherm").</i></p>`;
             modal.classList.add('open');
         } else if (opgeslagenVersie !== HUIDIGE_VERSIE) {
-            titel.innerHTML = "🚀 Nieuw in deze update!";
+            titel.innerHTML = "🚀 Update 1.4 is geïnstalleerd!";
             content.innerHTML = `
-                <p>De app is bijgewerkt! Wat is er nieuw?</p>
+                <p>De nieuwe wijzigingen staan live:</p>
                 <ul style="padding-left: 20px;">
-                    <li style="margin-bottom:8px"><b>Vaste Week:</b> De planning is nu netjes vastgezet van maandag t/m zondag. Vandaag is blauw uitgelicht!</li>
-                    <li style="margin-bottom:8px"><b>Sterren-weergave:</b> Zie direct visueel de gemiddelde score náást het gerecht in de planner.</li>
-                    <li style="margin-bottom:8px"><b>Veto's:</b> Bij een Veto zie je nu precies de namen in beeld van de personen die weigeren mee te eten. 🛑</li>
+                    <li style="margin-bottom:8px"><b>Weken Plannen:</b> Blader met de pijltjes ◀ ▶ tussen de huidige en komende weken. Huidige of oude weken zijn veilig vergrendeld voor normale gebruikers.</li>
+                    <li style="margin-bottom:8px"><b>Niet Mee-eten:</b> Ben je er niet? Klik op de knop <b>🏃 Afwezig</b>. Dit telt netjes mee voor je groene vinkje (✅), maar beïnvloedt de score niet!</li>
+                    <li style="margin-bottom:8px"><b>Historie:</b> In de database onderaan staat bij elk gerecht nu wanneer jullie het voor het laatst gegeten hebben.</li>
                 </ul>`;
             modal.classList.add('open');
         }
@@ -223,6 +235,11 @@
         tekenAlles();
     }
 
+    function veranderWeek(delta) {
+        actieveWeekOffset += delta;
+        tekenAlles();
+    }
+
     function tekenAlles() {
         tekenStatus();
         tekenPlanner();
@@ -230,12 +247,12 @@
         tekenAdminInstellingen();
     }
 
-    function getStartMaandag() {
+    function getStartMaandagVoorOffset(offset) {
         const vandaag = new Date();
         const dagVanDeWeek = vandaag.getDay();
         const verschilMetMaandag = dagVanDeWeek === 0 ? -6 : 1 - dagVanDeWeek;
         const startMaandag = new Date(vandaag);
-        startMaandag.setDate(vandaag.getDate() + verschilMetMaandag);
+        startMaandag.setDate(vandaag.getDate() + verschilMetMaandag + (offset * 7));
         return startMaandag;
     }
 
@@ -243,22 +260,25 @@
         const container = document.getElementById('status-list');
         container.innerHTML = '';
         
-        const startMaandag = getStartMaandag();
-        const datumsDezeWeek = Array.from({length:7}, (_,i) => { const d = new Date(startMaandag); d.setDate(d.getDate()+i); return d.toISOString().split('T')[0]; });
+        // Status wordt berekend op basis van de HUIDIG ZICHTBARE week
+        const startMaandag = getStartMaandagVoorOffset(actieveWeekOffset);
+        const datumsZichtbaar = Array.from({length:7}, (_,i) => { const d = new Date(startMaandag); d.setDate(d.getDate()+i); return d.toISOString().split('T')[0]; });
         
-        const geplandeMaaltijdIdsDezeWeek = appData.planning
-            .filter(p => datumsDezeWeek.includes(p.datum))
+        const geplandeMaaltijdIdsZichtbaar = appData.planning
+            .filter(p => datumsZichtbaar.includes(p.datum))
             .map(p => p.maaltijd_id)
             .filter(id => id != null);
         
         appData.deelnemers.forEach(u => {
-            const mijnRatings = appData.beoordelingen.filter(b => b.deelnemer_id === u.id && geplandeMaaltijdIdsDezeWeek.includes(b.maaltijd_id));
-            const isKlaar = geplandeMaaltijdIdsDezeWeek.length > 0 && mijnRatings.length >= geplandeMaaltijdIdsDezeWeek.length;
+            // Zowel sterren(>0), Veto(-1), als Afwezig(-2) zitten in deze lijst en tellen als 1 "keuze"
+            const mijnRatings = appData.beoordelingen.filter(b => b.deelnemer_id === u.id && geplandeMaaltijdIdsZichtbaar.includes(b.maaltijd_id));
+            const isKlaar = geplandeMaaltijdIdsZichtbaar.length > 0 && mijnRatings.length >= geplandeMaaltijdIdsZichtbaar.length;
             const adminBadge = u.is_admin ? '<span class="admin-badge">Admin</span>' : '';
             container.innerHTML += `<div class="user-chip ${isKlaar ? 'ready' : ''}">${isKlaar ? '✅' : '⏳'} ${u.naam} ${adminBadge}</div>`;
         });
     }
 
+    // Wiskundig gemiddelde, negeer Veto's (-1) EN Afwezigheden (-2)
     function getGemiddelde(mid) {
         const rb = appData.beoordelingen.filter(x => x.maaltijd_id === mid && x.sterren > 0);
         return rb.length ? (rb.reduce((a,b)=>a+b.sterren, 0)/rb.length).toFixed(1) : "0.0";
@@ -269,20 +289,51 @@
         return vetoBeoordelingen.map(v => appData.deelnemers.find(d => d.id === v.deelnemer_id)?.naam).filter(Boolean);
     }
 
+    function getAfwezigen(mid) {
+        const afwezigBeoordelingen = appData.beoordelingen.filter(x => x.maaltijd_id === mid && x.sterren === -2);
+        return afwezigBeoordelingen.map(v => appData.deelnemers.find(d => d.id === v.deelnemer_id)?.naam).filter(Boolean);
+    }
+
+    function getLaatstGegeten(mid) {
+        const vandaag = new Date();
+        vandaag.setHours(0,0,0,0);
+        
+        const planningen = appData.planning.filter(p => {
+            if(p.maaltijd_id !== mid) return false;
+            const pDate = new Date(p.datum);
+            return pDate < vandaag; 
+        });
+        
+        if (planningen.length === 0) return "Nog nooit";
+        
+        planningen.sort((a,b) => new Date(b.datum) - new Date(a.datum));
+        const laatste = new Date(planningen[0].datum);
+        return laatste.toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' });
+    }
+
     function tekenPlanner() {
         const list = document.getElementById('planner-list');
         list.innerHTML = '';
         
-        const isMenuDefinitief = appData.planning.some(p => p.is_definitief === true);
-        const isAdmin = appData.deelnemers.find(u => u.id === huidigeGebruikerId)?.is_admin;
+        const startMaandag = getStartMaandagVoorOffset(actieveWeekOffset);
+        const eindZondag = new Date(startMaandag); eindZondag.setDate(eindZondag.getDate() + 6);
+        const datumsZichtbaar = Array.from({length:7}, (_,i) => { const d = new Date(startMaandag); d.setDate(d.getDate()+i); return d.toISOString().split('T')[0]; });
+        
+        const formatOpt = { day: 'numeric', month: 'short' };
+        let offsetTitel = actieveWeekOffset === 0 ? " (Huidige week)" : (actieveWeekOffset === 1 ? " (Volgende week)" : "");
+        document.getElementById('week-titel').innerText = `${startMaandag.toLocaleDateString('nl-NL', formatOpt)} - ${eindZondag.toLocaleDateString('nl-NL', formatOpt)}${offsetTitel}`;
 
-        if (isMenuDefinitief) {
+        const isMenuDefinitief = appData.planning.some(p => datumsZichtbaar.includes(p.datum) && p.is_definitief === true);
+        const isAdmin = appData.deelnemers.find(u => u.id === huidigeGebruikerId)?.is_admin;
+        
+        const magAanpassen = isAdmin || (actieveWeekOffset > 0 && !isMenuDefinitief);
+
+        if (!magAanpassen && !isAdmin) {
             list.innerHTML += `<div style="background:#e8f4f8; color:#0c5460; border: 1px solid #bee5eb; padding:10px; border-radius:8px; margin-bottom:15px; font-size:0.85em;">
-                🔒 Het menu voor deze week is definitief. Alleen admins kunnen nog wijzigingen aanbrengen.
+                🔒 Deze week staat vast. Je kunt alleen nog beoordelen en afmelden.
             </div>`;
         }
 
-        const startMaandag = getStartMaandag();
         const vandaag = new Date();
         const dagenNamen = ['Zo', 'Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za'];
         
@@ -293,7 +344,6 @@
             
             const gepland = appData.planning.find(x => x.datum === iso);
             const mid = gepland?.maaltijd_id;
-            const magAanpassen = !isMenuDefinitief || isAdmin;
 
             let opts = '<option value="">-- Kies gerecht --</option>' + 
                 appData.maaltijden.map(m => `<option value="${m.id}" ${mid==m.id?'selected':''}>${m.naam}</option>`).join('');
@@ -304,15 +354,15 @@
             const dagNaam = isVandaag ? "Vandaag" : dagenNamen[d.getDay()] + " " + d.getDate();
 
             let avgStarsHtml = '';
-            let vetoHtml = '';
+            let extraInfoHtml = '';
 
             if (mid) {
                 const gem = getGemiddelde(mid);
                 const vetos = getVetoes(mid);
+                const afwezigen = getAfwezigen(mid);
 
-                if (vetos.length > 0) {
-                    vetoHtml = `<div style="color: var(--danger); font-size: 0.8em; font-weight: bold; margin-bottom: 5px; text-align: right;">🛑 Veto door: ${vetos.join(', ')}</div>`;
-                }
+                if (vetos.length > 0) extraInfoHtml += `<div style="color: var(--danger); font-size: 0.8em; font-weight: bold; margin-bottom: 2px; text-align: right;">🛑 Veto door: ${vetos.join(', ')}</div>`;
+                if (afwezigen.length > 0) extraInfoHtml += `<div style="color: var(--muted); font-size: 0.8em; margin-bottom: 5px; text-align: right;">🏃 Afwezig: ${afwezigen.join(', ')}</div>`;
 
                 avgStarsHtml = `
                 <div title="Gemiddelde: ${gem} sterren" style="width: 75px; text-align: center; flex-shrink: 0;">
@@ -326,9 +376,10 @@
             if (mid && huidigeGebruikerId) {
                 ratingHtml = `
                 <div style="display:flex; flex-direction:column; align-items:flex-end; margin-top:5px;">
-                    ${vetoHtml}
+                    ${extraInfoHtml}
                     <div class="inline-rating">
-                        <span style="font-size:0.7em; color:#999; margin-right:5px">Jouw stem:</span>
+                        <span style="font-size:0.7em; color:#999; margin-right:5px">Jouw keuze:</span>
+                        <button class="mini-rate afwezig-btn ${mijnRating===-2?'selected':''}" onclick="rate(${mid},-2)">🏃 Afwezig</button>
                         <button class="mini-rate veto-btn ${mijnRating===-1?'selected':''}" onclick="rate(${mid},-1)">🛑 Veto</button>
                         ${[1,2,3,4,5].map(n => `
                             <button class="mini-rate ${mijnRating===n?'selected':''}" onclick="rate(${mid},${n})">${n}★</button>
@@ -351,7 +402,7 @@
         if (isAdmin) {
             list.innerHTML += `
                 <button class="btn" style="background: ${isMenuDefinitief ? 'var(--danger)' : 'var(--success)'}; margin-top:20px;" onclick="maakDefinitief()">
-                    ${isMenuDefinitief ? '🔓 Menu weer vrijgeven' : '✅ Menu definitief maken'}
+                    ${isMenuDefinitief ? '🔓 Deze week vrijgeven' : '✅ Deze week definitief maken'}
                 </button>`;
         }
     }
@@ -364,11 +415,15 @@
         gesorteerd.forEach(m => {
             const gem = getGemiddelde(m.id);
             const vetos = getVetoes(m.id);
+            const laatstGegeten = getLaatstGegeten(m.id);
             const vetoBadge = vetos.length > 0 ? `<span style="font-size:0.75em; color:white; background:var(--danger); padding:2px 6px; border-radius:10px; margin-left:10px;">🛑 ${vetos.length} Veto</span>` : '';
             
             list.innerHTML += `
             <div style="padding:10px 0; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center">
-                <div><strong>${m.naam}</strong>${vetoBadge}</div>
+                <div>
+                    <strong>${m.naam}</strong>${vetoBadge}
+                    <div style="font-size: 0.75em; color: #888; margin-top: 2px;">Laatst gegeten: ${laatstGegeten}</div>
+                </div>
                 <div class="stars-outer"><div class="stars-inner" style="width:${gem*20}%"></div></div>
             </div>`;
         });
@@ -421,10 +476,11 @@
     async function toggleAdminRol(id, w) { await db.from('deelnemers').update({ is_admin: w }).eq('id', id); await laadData(); }
     
     async function maakDefinitief() {
-        const isDef = appData.planning.some(p => p.is_definitief === true);
-        const startMaandag = getStartMaandag();
-        const datums = Array.from({length:7}, (_,i) => { const d = new Date(startMaandag); d.setDate(d.getDate()+i); return d.toISOString().split('T')[0]; });
-        await db.from('weekplanning').update({ is_definitief: !isDef }).in('datum', datums);
+        const startMaandag = getStartMaandagVoorOffset(actieveWeekOffset);
+        const datumsZichtbaar = Array.from({length:7}, (_,i) => { const d = new Date(startMaandag); d.setDate(d.getDate()+i); return d.toISOString().split('T')[0]; });
+        const isDef = appData.planning.some(p => datumsZichtbaar.includes(p.datum) && p.is_definitief === true);
+        
+        await db.from('weekplanning').update({ is_definitief: !isDef }).in('datum', datumsZichtbaar);
         await laadData();
     }
 
