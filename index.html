@@ -134,8 +134,7 @@
 </div>
 
 <script>
-    // --- VERSIE BEHEER (Forceert de popup bij een update) ---
-    const HUIDIGE_VERSIE = "1.4";
+    const HUIDIGE_VERSIE = "1.5";
 
     window.onerror = function(msg, url, line) {
         document.getElementById('ui-error').style.display = 'block';
@@ -148,7 +147,7 @@
 
     let appData = { deelnemers: [], maaltijden: [], beoordelingen: [], planning: [] };
     let huidigeGebruikerId = null;
-    let actieveWeekOffset = 0; // 0 = Deze week, 1 = Volgende week, -1 = Vorige week
+    let actieveWeekOffset = 0; 
     
     try {
         const opgeslagen = localStorage.getItem('weekmenu_userid');
@@ -174,19 +173,14 @@
                     <li style="margin-bottom:8px"><b>Kies je naam:</b> Selecteer bovenaan eerst wie je bent, zo weet de app wie er stemt.</li>
                     <li style="margin-bottom:8px"><b>Stemmen:</b> Beoordeel het menu met sterren, of gebruik de Veto knop (🛑) als je het écht niet wilt eten!</li>
                     <li style="margin-bottom:8px"><b>Afwezig:</b> Eet je een dagje niet mee? Klik op 🏃 Afwezig, dan tellen we je niet mee.</li>
-                    <li style="margin-bottom:8px"><b>Beheerders:</b> Alleen zij kunnen het menu inplannen en de week definitief maken.</li>
                 </ul>
-                <p><i>💡 Tip: Installeer mij als app via de opties van je browser ("Zet op beginscherm").</i></p>`;
+                <p><i>💡 Let op: De Veto en Afwezig knoppen verschijnen pas nadat er een gerecht voor die dag is gekozen!</i></p>`;
             modal.classList.add('open');
         } else if (opgeslagenVersie !== HUIDIGE_VERSIE) {
-            titel.innerHTML = "🚀 Update 1.4 is geïnstalleerd!";
+            titel.innerHTML = "🚀 Systeem & Foutmeldingen Update!";
             content.innerHTML = `
-                <p>De nieuwe wijzigingen staan live:</p>
-                <ul style="padding-left: 20px;">
-                    <li style="margin-bottom:8px"><b>Weken Plannen:</b> Blader met de pijltjes ◀ ▶ tussen de huidige en komende weken. Huidige of oude weken zijn veilig vergrendeld voor normale gebruikers.</li>
-                    <li style="margin-bottom:8px"><b>Niet Mee-eten:</b> Ben je er niet? Klik op de knop <b>🏃 Afwezig</b>. Dit telt netjes mee voor je groene vinkje (✅), maar beïnvloedt de score niet!</li>
-                    <li style="margin-bottom:8px"><b>Historie:</b> In de database onderaan staat bij elk gerecht nu wanneer jullie het voor het laatst gegeten hebben.</li>
-                </ul>`;
+                <p>Soms leek het alsof knoppen niet werkten. Vanaf nu krijg je netjes een melding te zien als de database een actie blokkeert (bijvoorbeeld door een foutieve instelling).</p>
+                <p>Probeer gerust je Afwezig/Veto stem nog eens te plaatsen!</p>`;
             modal.classList.add('open');
         }
         localStorage.setItem('weekmenu_versie', HUIDIGE_VERSIE);
@@ -260,7 +254,6 @@
         const container = document.getElementById('status-list');
         container.innerHTML = '';
         
-        // Status wordt berekend op basis van de HUIDIG ZICHTBARE week
         const startMaandag = getStartMaandagVoorOffset(actieveWeekOffset);
         const datumsZichtbaar = Array.from({length:7}, (_,i) => { const d = new Date(startMaandag); d.setDate(d.getDate()+i); return d.toISOString().split('T')[0]; });
         
@@ -270,7 +263,6 @@
             .filter(id => id != null);
         
         appData.deelnemers.forEach(u => {
-            // Zowel sterren(>0), Veto(-1), als Afwezig(-2) zitten in deze lijst en tellen als 1 "keuze"
             const mijnRatings = appData.beoordelingen.filter(b => b.deelnemer_id === u.id && geplandeMaaltijdIdsZichtbaar.includes(b.maaltijd_id));
             const isKlaar = geplandeMaaltijdIdsZichtbaar.length > 0 && mijnRatings.length >= geplandeMaaltijdIdsZichtbaar.length;
             const adminBadge = u.is_admin ? '<span class="admin-badge">Admin</span>' : '';
@@ -278,7 +270,6 @@
         });
     }
 
-    // Wiskundig gemiddelde, negeer Veto's (-1) EN Afwezigheden (-2)
     function getGemiddelde(mid) {
         const rb = appData.beoordelingen.filter(x => x.maaltijd_id === mid && x.sterren > 0);
         return rb.length ? (rb.reduce((a,b)=>a+b.sterren, 0)/rb.length).toFixed(1) : "0.0";
@@ -490,10 +481,27 @@
         await laadData();
     }
 
+    // --- DE AANGEPASTE RATE FUNCTIE MET FOUTMELDING ---
     async function rate(mid, s) {
         if(!huidigeGebruikerId) return alert("Kies eerst je naam bovenaan!");
-        await db.from('beoordelingen').upsert({ maaltijd_id: mid, deelnemer_id: huidigeGebruikerId, sterren: s }, { onConflict: 'maaltijd_id,deelnemer_id' });
-        await laadData();
+        
+        try {
+            const { error } = await db.from('beoordelingen').upsert(
+                { maaltijd_id: mid, deelnemer_id: huidigeGebruikerId, sterren: s }, 
+                { onConflict: 'maaltijd_id,deelnemer_id' }
+            );
+            
+            // Als Supabase weigert (bijv. door een constraint), laat dan een pop-up zien!
+            if (error) {
+                alert("Oeps, de database blokkeert dit: " + error.message);
+                console.error("Supabase Error:", error);
+                return;
+            }
+            
+            await laadData();
+        } catch (err) {
+            alert("Er ging iets mis met de verbinding: " + err.message);
+        }
     }
 
     async function voegPersoonToe() {
